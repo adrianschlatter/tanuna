@@ -7,6 +7,7 @@
 
 import numpy as np
 import scipy.signal as ss
+from scipy.linalg import expm
 
 
 class ApproximationError(Exception):
@@ -71,7 +72,132 @@ class CT_System():
 class CT_LTI_System(CT_System):
     """Linear, time-invariant system"""
 
-    pass
+    def __init__(self, A, B, C, D, x0=None):
+        self._A, self._B, self._C, self._D = A, B, C, D
+        if x0 is None:
+            self.x = np.matrix(np.zeros((A.shape[0], 1)))
+        else:
+            self.x = x0
+
+    @property
+    def order(self):
+        """The order of the system"""
+        return(self._A.shape[0])
+
+    @property
+    def links(self):
+        """Number of inputs and outputs"""
+        return(D.shape)
+
+    @property
+    def eigenValues(self):
+        """Eigenvalues of the state matrix"""
+        return(np.linalg.eigvals(self._A))
+
+    @property
+    def stable(self):
+        return(np.all(self.eigenValues.real < 0))
+
+    @property
+    def Wo(self):
+        """Observability matrix"""
+        W = np.matrix(np.zeros((0, C.shape[1])))
+        for n in range(self.order):
+            W = np.vstack((W, C*A**n))
+        return(W)
+
+    @property
+    def Wr(self):
+        """Reachability matrix"""
+        W = np.matrix(np.zeros((B.shape[0], 0)))
+        for n in range(self.order):
+            W = np.hstack((W, A**n*B))
+        return(W)
+
+    @property
+    def reachable(self):
+        """Returns True if the system is reachable."""
+        return(np.linalg.matrix_rank(self.Wr) == self.order)
+
+    @property
+    def observable(self):
+        """Returns True if the system is observable."""
+        return(np.linalg.matrix_rank(self.Wo) == self.order)
+
+    def _tResponse(self):
+        """Automatically determines appropriate time axis for step- and
+        impulse-response plotting"""
+
+        tau = np.abs(1. / self.eigenValues.real)
+        f = self.eigenValues.imag / (2 * np.pi)
+        period = np.abs(1. / f[f != 0])
+        timescales = np.concatenate([tau, period])
+        dt = timescales.min() / 20.
+        T = tau.max() * 10.
+        return(np.arange(0., T, dt))
+
+    def stepResponse(self, t=None):
+        """
+        Step Response
+        +++++++++++++
+
+        Returns (t, ystep), where
+
+            ystep :  Step response
+            t     :  Corresponding array of times
+
+        t is either provided as an argument to this function or determined
+        automatically.
+        """
+
+        if t is None:
+            t = self._tResponse()
+
+        A, B, C, D = self._A, self._B, self._C, self._D
+        steady = D - C * A.I * B
+        y = [C * A.I * expm(A * ti) * B + steady for ti in t]
+        return((t, np.array(y).reshape(-1, self.links[1])))
+
+    def impulseResponse(self, t=None):
+        """
+        Impulse Response
+        +++++++++++++
+
+        Returns (t, yimpulse), where
+
+            yimpulse :  Impulse response (*without* direct term D)
+            t        :  Corresponding array of times
+
+        t is either provided as an argument to this function or determined
+        automatically.
+        """
+
+        if t is None:
+            t = self._tResponse()
+
+        A, B, C = self._A, self._B, self._C
+        y = [C * expm(A * ti) * B for ti in t]
+        return((t, np.array(y).reshape(-1, self.links[1])))
+
+    def freqResponse(self, t=None):
+        """Frequency response"""
+        # see Feedback System, page 153
+        pass
+
+    @property
+    def tf(self):
+        """Transfer-function representation (b, a) of the system. Returns
+        numerator (b) and denominator (a) coefficients."""
+        pass
+
+    @property
+    def Thetaphi(self):
+        pass
+
+    @property
+    def gpz(self):
+        """Gain, Pole, Zero representation of the system"""
+        pass
 
 
 def Thetaphi(b, a):
@@ -118,7 +244,7 @@ def differenceEquation(b, a):
     return s
 
 
-class StateSpaceFilter():
+class DT_LTV_System():
     """Implements the discrete linear, time-variant system with input vector
     u[t], internal state vector x[t], and output vector y[t]:
 
@@ -154,30 +280,45 @@ class StateSpaceFilter():
 
 
 class DT_LTI_System(object):
-    """Discrete-time linear time-invariant system."""
+    """Implements the discrete-time linear, time-invariant system with input
+    vector u[t], internal state vector x[t], and output vector y[t]:
 
-    def __init__(self, A, B, C, D, x0):
-        pass
+        x[t+1] = A * x[t] + B * u[t]
+        y[t]   = C * x[t] + D * u[t]
+
+    where
+        A: state matrix
+        B: input matrix
+        C: output matrix
+        D: feedthrough matrix
+
+    The system is initialized with state vector x[0] = x0.
+    """
+
+    def __init__(self, A, B, C, D, x0=np.matrix([0., 0.]).T):
+        self.A, self.B, self.C, self.C = A, B, C, D
+        self.x = x0
 
     @classmethod
     def fromTransferFunction(Theta, phi):
         """Initialize DiscreteLTI instance from transfer-function coefficients
         'Theta' and 'phi'."""
+
         pass
 
     def __repr__(self):
         pass
 
     def stable(self):
-        """Returns true if the system is strictly stable"""
+        """Returns True if the system is strictly stable"""
         pass
 
     def observable(self):
         """Returns true if the system is observable"""
         pass
 
-    def controllable(self):
-        """Returns true if the system is observable"""
+    def reachable(self):
+        """Returns True if the system is observable"""
         pass
 
     def tf(self):
@@ -222,22 +363,38 @@ class DT_LTI_System(object):
 
 if __name__ == '__main__':
     import matplotlib.pyplot as pl
+    pl.close('all')
 
-    # "short-circuit" filter (output = input):
-    filter0 = [np.ones(1.), np.ones(1.)]
-    # XXX low-pass?
-    filter1 = [np.array([6./50.]), np.array([1, -44./50.])]
+    w0 = 2 * np.pi * 100e3
+    zeta = 0.5
+    k = 1.
 
-    Nsamples = 50
-    A, B, C, D = ss.tf2ss(*filter1)
-    At = A.reshape((1,) + A.shape).repeat(Nsamples, axis=0)
-    Bt = B.reshape((1,) + B.shape).repeat(Nsamples, axis=0)
-    Ct = C.reshape((1,) + C.shape).repeat(Nsamples, axis=0)
-    Dt = D.reshape((1,) + D.shape).repeat(Nsamples, axis=0)
+    A = np.matrix([[0, w0], [-w0, -2 * zeta * w0]])
+    B = np.matrix([0, k * w0]).T
+    C = np.matrix([1., 0.])
+    D = np.matrix([0.])
 
-    sys = StateSpaceFilter(At, Bt, Ct, Dt, np.zeros((1, 1)))
-    Yt = sys.feed(np.ones((1, Nsamples)))
+    G = CT_LTI_System(A, B, C, D)
 
     pl.figure()
-    pl.plot(np.ones(Nsamples), 'ko-')
-    pl.plot(Yt.T, 'bo-')
+    pl.plot(*G.stepResponse())
+#    pl.plot(*G.impulseResponse())
+#
+#    # "short-circuit" filter (output = input):
+#    filter0 = [np.ones(1.), np.ones(1.)]
+#    # XXX low-pass?
+#    filter1 = [np.array([6./50.]), np.array([1, -44./50.])]
+#
+#    Nsamples = 50
+#    A, B, C, D = ss.tf2ss(*filter1)
+#    At = A.reshape((1,) + A.shape).repeat(Nsamples, axis=0)
+#    Bt = B.reshape((1,) + B.shape).repeat(Nsamples, axis=0)
+#    Ct = C.reshape((1,) + C.shape).repeat(Nsamples, axis=0)
+#    Dt = D.reshape((1,) + D.shape).repeat(Nsamples, axis=0)
+#
+#    sys = DT_LTV_System(At, Bt, Ct, Dt, np.zeros((1, 1)))
+#    Yt = sys.feed(np.ones((1, Nsamples)))
+#
+#    pl.figure()
+#    pl.plot(np.ones(Nsamples), 'ko-')
+#    pl.plot(Yt.T, 'bo-')
