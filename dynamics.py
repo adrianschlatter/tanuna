@@ -1,6 +1,13 @@
 # -*- coding: utf-8 -*-
 """
-[ Describe here what this script / module does ]
+pyDynamics provides tools to work with dynamic systems. This includes
+
+* continuous- and discrete-time systems
+* linear and non-linear systems
+* time-independent and time-varying systems
+* Single-Input Single-Output (SISO) and Multiple-Input Multiple-Output (MISO)
+  systems
+
 
 @author: Adrian Schlatter
 """
@@ -10,7 +17,7 @@ class ApproximationError(Exception):
     pass
 
 
-class OrdinarySystem():
+class CT_System():
     """
     Describes a system with dynamics described by ordinary differential
     equations.
@@ -24,7 +31,7 @@ class OrdinarySystem():
         c(s):       Function that maps state s to output y = c(s) + d(u)
         d(u):       Function describing direct term y = c(s) + d(u)
 
-    OrdinarySystem is solved by simply calling it with an argument t. t is
+    CT_System is solved by simply calling it with an argument t. t is
     either a float or array-like. In the latter case, the system is solved for
     all the times t in the array.
     """
@@ -57,7 +64,7 @@ class OrdinarySystem():
 
     def tangentLTI(self, s0, u0, t):
         """
-        Approximates the OrdinarySystem at time t near state s0 and input u0
+        Approximates the CT_System at time t near state s0 and input u0
         by an LTISystem (linear, time-invariant system).
         Raises ApproximationError if the system can not be linearized.
         """
@@ -65,13 +72,7 @@ class OrdinarySystem():
         pass
 
 
-class OrdinaryTISystem(OrdinarySystem):
-    """The same as OrdinarySystem but independent of t."""
-
-    pass
-
-
-class LTISystem(OrdinaryTISystem):
+class LTISystem(CT_System):
     """Linear, time-invariant system"""
 
     pass
