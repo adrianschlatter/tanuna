@@ -12,6 +12,10 @@ pyDynamics provides tools to work with dynamic systems. This includes
 @author: Adrian Schlatter
 """
 
+import numpy as np
+import scipy.signal as ss
+from scipy.linalg import expm
+
 
 class ApproximationError(Exception):
     pass
@@ -19,8 +23,8 @@ class ApproximationError(Exception):
 
 class CT_System():
     """
-    Describes a system with dynamics described by ordinary differential
-    equations.
+    Describes a continuous-time system with dynamics described by ordinary
+    differential equations.
 
         s:          Internal state (vector) of the system
         s0:         Initial state of the system
@@ -31,9 +35,9 @@ class CT_System():
         c(s):       Function that maps state s to output y = c(s) + d(u)
         d(u):       Function describing direct term y = c(s) + d(u)
 
-    CT_System is solved by simply calling it with an argument t. t is
-    either a float or array-like. In the latter case, the system is solved for
-    all the times t in the array.
+    It is solved by simply calling it with an argument t. t is either a float
+    or array-like. In the latter case, the system is solved for all the times
+    t in the array.
     """
 
     def __init__(self, f, s0, c, d):
@@ -72,7 +76,332 @@ class CT_System():
         pass
 
 
-class LTISystem(CT_System):
+class CT_LTI_System(CT_System):
     """Linear, time-invariant system"""
 
-    pass
+    def __init__(self, A, B, C, D, x0=None):
+        self._A, self._B, self._C, self._D = A, B, C, D
+        if x0 is None:
+            self.x = np.matrix(np.zeros((A.shape[0], 1)))
+        else:
+            self.x = x0
+
+    @property
+    def order(self):
+        """The order of the system"""
+        return(self._A.shape[0])
+
+    @property
+    def links(self):
+        """Number of inputs and outputs"""
+        return(D.shape)
+
+    @property
+    def eigenValues(self):
+        """Eigenvalues of the state matrix"""
+        return(np.linalg.eigvals(self._A))
+
+    @property
+    def stable(self):
+        return(np.all(self.eigenValues.real < 0))
+
+    @property
+    def Wo(self):
+        """Observability matrix"""
+        W = np.matrix(np.zeros((0, C.shape[1])))
+        for n in range(self.order):
+            W = np.vstack((W, C*A**n))
+        return(W)
+
+    @property
+    def Wr(self):
+        """Reachability matrix"""
+        W = np.matrix(np.zeros((B.shape[0], 0)))
+        for n in range(self.order):
+            W = np.hstack((W, A**n*B))
+        return(W)
+
+    @property
+    def reachable(self):
+        """Returns True if the system is reachable."""
+        return(np.linalg.matrix_rank(self.Wr) == self.order)
+
+    @property
+    def observable(self):
+        """Returns True if the system is observable."""
+        return(np.linalg.matrix_rank(self.Wo) == self.order)
+
+    def _tResponse(self):
+        """Automatically determines appropriate time axis for step- and
+        impulse-response plotting"""
+
+        tau = np.abs(1. / self.eigenValues.real)
+        f = self.eigenValues.imag / (2 * np.pi)
+        period = np.abs(1. / f[f != 0])
+        timescales = np.concatenate([tau, period])
+        dt = timescales.min() / 20.
+        T = tau.max() * 10.
+        return(np.arange(0., T, dt))
+
+    def stepResponse(self, t=None):
+        """
+        Step Response
+        +++++++++++++
+
+        Returns (t, ystep), where
+
+            ystep :  Step response
+            t     :  Corresponding array of times
+
+        t is either provided as an argument to this function or determined
+        automatically.
+        """
+
+        if t is None:
+            t = self._tResponse()
+
+        A, B, C, D = self._A, self._B, self._C, self._D
+        steady = D - C * A.I * B
+        y = [C * A.I * expm(A * ti) * B + steady for ti in t]
+        return((t, np.array(y).reshape(-1, self.links[1])))
+
+    def impulseResponse(self, t=None):
+        """
+        Impulse Response
+        +++++++++++++
+
+        Returns (t, yimpulse), where
+
+            yimpulse :  Impulse response (*without* direct term D)
+            t        :  Corresponding array of times
+
+        t is either provided as an argument to this function or determined
+        automatically.
+        """
+
+        if t is None:
+            t = self._tResponse()
+
+        A, B, C = self._A, self._B, self._C
+        y = [C * expm(A * ti) * B for ti in t]
+        return((t, np.array(y).reshape(-1, self.links[1])))
+
+    def freqResponse(self, t=None):
+        """Frequency response"""
+        # see Feedback System, page 153
+        pass
+
+    @property
+    def tf(self):
+        """Transfer-function representation (b, a) of the system. Returns
+        numerator (b) and denominator (a) coefficients."""
+        pass
+
+    @property
+    def Thetaphi(self):
+        pass
+
+    @property
+    def gpz(self):
+        """Gain, Pole, Zero representation of the system"""
+        pass
+
+
+def Thetaphi(b, a):
+    """Translate filter-coefficient arrays b and a to Theta, phi
+    representation:
+
+    phi(B)*y_t = Theta(B)*x_t
+
+    Theta, phi = Thetaphi(b, a) are the coefficient of the back-shift-operator
+    polynomials (index i belongs to B^i)"""
+
+    phi = np.array(a)
+    if len(phi) > 1:
+        phi[1:] = -phi[1:]
+    Theta = np.array(b)
+    return [Theta, phi]
+
+
+def ba(Theta, phi):
+    """Translate backshift-operator polynomials Theta and phi to filter
+    coefficient array b, a.
+
+    a[0]*y[t] = a[1]*y[t-1] + ... + a[n]*y[t-n] + b[0]*x[t] + ... + b[m]*x[t-m]
+    """
+    # XXX these b and a are not compatible with scipy.lfilter. Appararently,
+    # scipy.lfilter  expects Theta and phi
+
+    # Thetaphi() is its own inverse:
+    return(Thetaphi(Theta, phi))
+
+
+def differenceEquation(b, a):
+    """Takes filter coefficient arrays b and a and returns string with
+    difference equation using powers of B, where B the backshift operator."""
+
+    Theta, phi = Thetaphi(b, a)
+    s = '('
+    for i in range(len(phi)):
+        s += '%.2f B^%d+' % (phi[i], i)
+    s = s[:-1] + ')*y_t = ('
+    for i in range(len(Theta)):
+        s += '%.2f B^%d+' % (Theta[i], i)
+    s = s[:-1]+')*x_t'
+    return s
+
+
+class DT_LTV_System():
+    """Implements the discrete linear, time-variant system with input vector
+    u[t], internal state vector x[t], and output vector y[t]:
+
+        x[t+1] = A[t]*x[t] + B[t]*u[t]
+        y[t]   = C*x[t] + D*u[t]
+
+    where
+        A[t]: state matrices
+        B[t]: input matrices
+        C[t]: output matrices
+        D[t]: feedthrough matrices
+
+    The system is initialized with state vector x[0] = X0.
+    """
+
+    def __init__(self, At, Bt, Ct, Dt, X0):
+        self.At = At
+        self.Bt = Bt
+        self.Ct = Ct
+        self.Dt = Dt
+        self.X = X0
+        self.t = 0
+
+    def update(self, U):
+        U.shape = (-1, 1)
+        t = min(self.t, len(self.At))
+        self.X = np.dot(self.At[t], self.X) + np.dot(self.Bt[t], U)
+        self.t += 1
+        return np.dot(self.Ct[t], self.X) + np.dot(self.Dt[t], U)
+
+    def feed(self, Ut):
+        return np.concatenate([self.update(U) for U in Ut.T]).T
+
+
+class DT_LTI_System(object):
+    """Implements the discrete-time linear, time-invariant system with input
+    vector u[t], internal state vector x[t], and output vector y[t]:
+
+        x[t+1] = A * x[t] + B * u[t]
+        y[t]   = C * x[t] + D * u[t]
+
+    where
+        A: state matrix
+        B: input matrix
+        C: output matrix
+        D: feedthrough matrix
+
+    The system is initialized with state vector x[0] = x0.
+    """
+
+    def __init__(self, A, B, C, D, x0=np.matrix([0., 0.]).T):
+        self.A, self.B, self.C, self.C = A, B, C, D
+        self.x = x0
+
+    @classmethod
+    def fromTransferFunction(Theta, phi):
+        """Initialize DiscreteLTI instance from transfer-function coefficients
+        'Theta' and 'phi'."""
+
+        pass
+
+    def __repr__(self):
+        pass
+
+    def stable(self):
+        """Returns True if the system is strictly stable"""
+        pass
+
+    def observable(self):
+        """Returns true if the system is observable"""
+        pass
+
+    def reachable(self):
+        """Returns True if the system is observable"""
+        pass
+
+    def tf(self):
+        """Returns the transfer function (b, a) where 'b' are the coefficients
+        of the nominator polynomial and 'a' are the coefficients of the
+        denominator polynomial."""
+        pass
+
+    def proper(self):
+        """Returns true if the system's transfer function is strictly proper,
+        i.e. the degree of the numerator is less than the degree of the
+        denominator."""
+        pass
+
+    def __add__(self, right):
+        pass
+
+    def __radd__(self, left):
+        pass
+
+    def __rsub__(self, left):
+        pass
+
+    def __mul__(self, right):
+        pass
+
+    def __rmul__(self, left):
+        pass
+
+    def __iadd__(self, right):
+        pass
+
+    def __isub__(self, right):
+        pass
+
+    def __imul__(self, right):
+        pass
+
+    def __idiv__(self, right):
+        pass
+
+
+if __name__ == '__main__':
+    import matplotlib.pyplot as pl
+    pl.close('all')
+
+    w0 = 2 * np.pi * 100e3
+    zeta = 0.5
+    k = 1.
+
+    A = np.matrix([[0, w0], [-w0, -2 * zeta * w0]])
+    B = np.matrix([0, k * w0]).T
+    C = np.matrix([1., 0.])
+    D = np.matrix([0.])
+
+    G = CT_LTI_System(A, B, C, D)
+
+    pl.figure()
+    pl.plot(*G.stepResponse())
+#    pl.plot(*G.impulseResponse())
+#
+#    # "short-circuit" filter (output = input):
+#    filter0 = [np.ones(1.), np.ones(1.)]
+#    # XXX low-pass?
+#    filter1 = [np.array([6./50.]), np.array([1, -44./50.])]
+#
+#    Nsamples = 50
+#    A, B, C, D = ss.tf2ss(*filter1)
+#    At = A.reshape((1,) + A.shape).repeat(Nsamples, axis=0)
+#    Bt = B.reshape((1,) + B.shape).repeat(Nsamples, axis=0)
+#    Ct = C.reshape((1,) + C.shape).repeat(Nsamples, axis=0)
+#    Dt = D.reshape((1,) + D.shape).repeat(Nsamples, axis=0)
+#
+#    sys = DT_LTV_System(At, Bt, Ct, Dt, np.zeros((1, 1)))
+#    Yt = sys.feed(np.ones((1, Nsamples)))
+#
+#    pl.figure()
+#    pl.plot(np.ones(Nsamples), 'ko-')
+#    pl.plot(Yt.T, 'bo-')
