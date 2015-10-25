@@ -52,19 +52,17 @@ class CT_System():
         - s_i:          A steady-state at time t, i.e. f(t, s_i, u0) = 0
         - stability_i:  True if this steady-state is stable, false otherwise
         """
-        pass
+        raise NotImplementedError
 
     def observable(self, t):
         """Returns whether the system is observable at time t (i.e. its
         internal state is determinable from inputs u and outputs y)."""
-
-        pass
+        raise NotImplementedError
 
     def reachable(self, t):
         """Returns whether the system is reachable at time t (i.e. all states
         are reachable by providing an appropriate input u(t))."""
-
-        pass
+        raise NotImplementedError
 
     def tangentLTI(self, s0, u0, t):
         """
@@ -73,7 +71,7 @@ class CT_System():
         Raises ApproximationError if the system can not be linearized.
         """
 
-        pass
+        raise NotImplementedError
 
 
 class CT_LTI_System(CT_System):
@@ -94,7 +92,7 @@ class CT_LTI_System(CT_System):
     @property
     def links(self):
         """Number of inputs and outputs"""
-        return(D.shape)
+        return(self._D.shape)
 
     @property
     def eigenValues(self):
@@ -108,17 +106,17 @@ class CT_LTI_System(CT_System):
     @property
     def Wo(self):
         """Observability matrix"""
-        W = np.matrix(np.zeros((0, C.shape[1])))
+        W = np.matrix(np.zeros((0, self._C.shape[1])))
         for n in range(self.order):
-            W = np.vstack((W, C*A**n))
+            W = np.vstack((W, self._C * self._A**n))
         return(W)
 
     @property
     def Wr(self):
         """Reachability matrix"""
-        W = np.matrix(np.zeros((B.shape[0], 0)))
+        W = np.matrix(np.zeros((self._B.shape[0], 0)))
         for n in range(self.order):
-            W = np.hstack((W, A**n*B))
+            W = np.hstack((W, self._A**n * self._B))
         return(W)
 
     @property
@@ -189,22 +187,22 @@ class CT_LTI_System(CT_System):
     def freqResponse(self, t=None):
         """Frequency response"""
         # see Feedback System, page 153
-        pass
+        raise NotImplementedError
 
     @property
     def tf(self):
         """Transfer-function representation (b, a) of the system. Returns
         numerator (b) and denominator (a) coefficients."""
-        pass
+        raise NotImplementedError
 
     @property
     def Thetaphi(self):
-        pass
+        raise NotImplementedError
 
     @property
     def gpz(self):
         """Gain, Pole, Zero representation of the system"""
-        pass
+        raise NotImplementedError
 
 
 def Thetaphi(b, a):
@@ -311,61 +309,61 @@ class DT_LTI_System(object):
         """Initialize DiscreteLTI instance from transfer-function coefficients
         'Theta' and 'phi'."""
 
-        pass
+        raise NotImplementedError
 
     def __repr__(self):
-        pass
+        raise NotImplementedError
 
     def stable(self):
         """Returns True if the system is strictly stable"""
-        pass
+        raise NotImplementedError
 
     def observable(self):
         """Returns true if the system is observable"""
-        pass
+        raise NotImplementedError
 
     def reachable(self):
         """Returns True if the system is observable"""
-        pass
+        raise NotImplementedError
 
     def tf(self):
         """Returns the transfer function (b, a) where 'b' are the coefficients
         of the nominator polynomial and 'a' are the coefficients of the
         denominator polynomial."""
-        pass
+        raise NotImplementedError
 
     def proper(self):
         """Returns true if the system's transfer function is strictly proper,
         i.e. the degree of the numerator is less than the degree of the
         denominator."""
-        pass
+        raise NotImplementedError
 
     def __add__(self, right):
-        pass
+        raise NotImplementedError
 
     def __radd__(self, left):
-        pass
+        raise NotImplementedError
 
     def __rsub__(self, left):
-        pass
+        raise NotImplementedError
 
     def __mul__(self, right):
-        pass
+        raise NotImplementedError
 
     def __rmul__(self, left):
-        pass
+        raise NotImplementedError
 
     def __iadd__(self, right):
-        pass
+        raise NotImplementedError
 
     def __isub__(self, right):
-        pass
+        raise NotImplementedError
 
     def __imul__(self, right):
-        pass
+        raise NotImplementedError
 
     def __idiv__(self, right):
-        pass
+        raise NotImplementedError
 
 
 if __name__ == '__main__':
