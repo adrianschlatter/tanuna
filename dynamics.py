@@ -13,12 +13,56 @@ pyDynamics provides tools to work with dynamic systems. This includes
 """
 
 import numpy as np
-import scipy.signal as ss
+import scipy.signal as signal
 from scipy.linalg import expm
+from time import sleep
 
 
 class ApproximationError(Exception):
     pass
+
+
+class MatrixError(Exception):
+    pass
+
+
+def determinant(M):
+    """Calculates the determinant of a square matrix M"""
+
+    if len(M.shape) != 2:
+        raise MatrixError('M must have exactly 2 dimensions')
+    if M.shape[0] != M.shape[1]:
+        raise MatrixError('M is expected to be square')
+
+    for row in range(M.shape[0]):
+        # lower-triangulars == 0?
+        try:
+            i = np.arange(0, row)[M[row, :row] != 0][0]
+            v_i = np.array(M[:, i].reshape(-1, 1))
+            w_i = np.array(v_i)
+            v_i[row:, 0] = 0.
+            w_i[:row, 0] = 0.
+
+            M1 = np.hstack((M[:, :i], v_i, M[:, i+1:]))
+            M2 = np.hstack((M[:, :i], w_i, M[:, i+1:]))
+#            print('Column splitting')
+            return(determinant(M1) + determinant(M2))
+        except IndexError:
+            pass    # all 0
+
+        # diagonal != 0?
+        if M[row, row] == 0:
+            try:
+                col2 = np.arange(row+1, M.shape[0])[M[row, row+1:] != 0][0]
+                Msw = np.hstack((M[:, :row],
+                                 M[:, col2:col2+1],
+                                 M[:, row+1:col2],
+                                 M[:, row:row+1],
+                                 M[:, col2+1:]))
+                return(-determinant(Msw))
+            except:
+                return(0)
+    return(M.diagonal().prod())
 
 
 class CT_System():
@@ -31,16 +75,14 @@ class CT_System():
         u:          External input (vector)
 
         f(t, s, u): Dynamics of the system (ds/dt = f(t, s, u))
-        s0:         Initial state
-        c(s):       Function that maps state s to output y = c(s) + d(u)
-        d(u):       Function describing direct term y = c(s) + d(u)
+        g(t, s, u): Function that maps state s to output y = g(t, s, u)
 
     It is solved by simply calling it with an argument t. t is either a float
     or array-like. In the latter case, the system is solved for all the times
     t in the array.
     """
 
-    def __init__(self, f, s0, c, d):
+    def __init__(self, f, g, s0):
         pass
 
     def __call__(self, t):
@@ -78,6 +120,7 @@ class CT_LTI_System(CT_System):
     """Linear, time-invariant system"""
 
     def __init__(self, A, B, C, D, x0=None):
+        A, B, C, D = map(np.asmatrix, (A, B, C, D))
         self._A, self._B, self._C, self._D = A, B, C, D
         if x0 is None:
             self.x = np.matrix(np.zeros((A.shape[0], 1)))
@@ -92,7 +135,7 @@ class CT_LTI_System(CT_System):
     @property
     def links(self):
         """Number of inputs and outputs"""
-        return(self._D.shape)
+        return(self._D.T.shape)
 
     @property
     def eigenValues(self):
@@ -191,16 +234,32 @@ class CT_LTI_System(CT_System):
 
     @property
     def tf(self):
-        """Transfer-function representation (b, a) of the system. Returns
-        numerator (b) and denominator (a) coefficients."""
-        raise NotImplementedError
+        """
+        Transfer Function
+        +++++++++++++++++
+
+        Transfer-function representation (b, a) of the system. Returns
+        numerator (b) and denominator (a) coefficients.
+
+                 b[0] * s**n + ... + b[n] * s**0
+        G(s) =  ---------------------------------
+                 a[0] * s**m + ... + a[m] * s**0
+        """
+        A, B, C, D = self._A, self._B, self._C, self._D
+        a = np.poly(A)
+        tfs = [[]]
+        for outp in range(self.links[1]):
+            tfs.append([])
+            for inp in range(self.links[0]):
+                tfs[outp].append((bs[outp], a))
+        return(tfs)
 
     @property
     def Thetaphi(self):
         raise NotImplementedError
 
     @property
-    def gpz(self):
+    def zpk(self):
         """Gain, Pole, Zero representation of the system"""
         raise NotImplementedError
 
@@ -367,22 +426,30 @@ class DT_LTI_System(object):
 
 
 if __name__ == '__main__':
-    import matplotlib.pyplot as pl
-    pl.close('all')
+#    import matplotlib.pyplot as pl
+#    pl.close('all')
+#
+#    w0 = 2 * np.pi * 100e3
+#    zeta = 0.5
+#    k = 1.
+#
+#    A = np.matrix([[0, w0], [-w0, -2 * zeta * w0]])
+#    B = np.matrix([0, k * w0]).T
+#    C = np.matrix([1., 0.])
+#    D = np.matrix([0.])
+#
+#    G = CT_LTI_System(A, B, C, D)
+#
+#    pl.figure()
+#    pl.plot(*G.stepResponse())
 
-    w0 = 2 * np.pi * 100e3
-    zeta = 0.5
-    k = 1.
+    for i in range(1000):
+        M = np.random.normal(loc=0, scale=3, size=(20, 20))
+        det = determinant(M)
+        if det / np.linalg.det(M) - 1 > 1e-12:
+            print(M)
+            break
 
-    A = np.matrix([[0, w0], [-w0, -2 * zeta * w0]])
-    B = np.matrix([0, k * w0]).T
-    C = np.matrix([1., 0.])
-    D = np.matrix([0.])
-
-    G = CT_LTI_System(A, B, C, D)
-
-    pl.figure()
-    pl.plot(*G.stepResponse())
 #    pl.plot(*G.impulseResponse())
 #
 #    # "short-circuit" filter (output = input):
@@ -391,7 +458,7 @@ if __name__ == '__main__':
 #    filter1 = [np.array([6./50.]), np.array([1, -44./50.])]
 #
 #    Nsamples = 50
-#    A, B, C, D = ss.tf2ss(*filter1)
+#    A, B, C, D = signal.tf2ss(*filter1)
 #    At = A.reshape((1,) + A.shape).repeat(Nsamples, axis=0)
 #    Bt = B.reshape((1,) + B.shape).repeat(Nsamples, axis=0)
 #    Ct = C.reshape((1,) + C.shape).repeat(Nsamples, axis=0)
