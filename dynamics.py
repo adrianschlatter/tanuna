@@ -13,9 +13,8 @@ pyDynamics provides tools to work with dynamic systems. This includes
 """
 
 import numpy as np
-import scipy.signal as signal
+from numpy.linalg import det
 from scipy.linalg import expm
-from time import sleep
 
 
 class ApproximationError(Exception):
@@ -63,6 +62,82 @@ def determinant(M):
             except:
                 return(0)
     return(M.diagonal().prod())
+
+
+def nChoosek(n, k):
+    """
+    Yields all possibilities of choosing k elements from an array of length n.
+
+    >>> list(nChoosek(3, 1))
+    ... [array([True, False, False]),
+    ...  array([False, True, False]),
+    ...  array([False, False, True])]
+
+    Assume you have an array, you get all choices of k elements with
+
+    >>> x = np.array([5, 2, 8])
+    ... for choice in nChoosek(len(x), 1):
+    ...     choice = np.array(choice)
+    ...     print(x[choice])
+    ...
+    ... [5]
+    ... [2]
+    ... [8]
+    """
+
+    # These conditions end the recursion:
+    if k == 0:
+        yield [False] * n
+        return
+    if k == n:
+        yield [True] * n
+        return
+
+    # Otherwise, we have to recurse:
+    for subChoice in nChoosek(n - 1, k - 1):
+        # Select first element and recurse:
+        yield [True] + subChoice
+    for subChoice in nChoosek(n - 1, k):
+        # Do not select first element and recurse:
+        yield [False] + subChoice
+
+
+def poly(M0, M1):
+    """
+    Returns the coefficients of the polynomial
+
+        p(s) = det(M0 + s*M1)
+
+    with M0 and M1 square matrices of equal dimension.
+
+    Example:
+
+        b = np.array(-1, 2.5, 0)
+
+    refers to the polynomial
+
+        p(s) = -s**2 + 2.5*s + 0
+    """
+
+    # Let M0 = [v0, ..., v(n-1)], M1 = [w0, ..., w(n-1)]
+    # det(M0 + s*M1) = sum(det(x0, ..., x(n-1)) * s**k),
+    # where xi in [vi, wi]; k the number of xi in [w0, ..., w(n-1)]
+    # and the sum is running over all possibilities to choose the xi's.
+
+    M0 = np.matrix(M0)
+    M1 = np.matrix(M1)
+    n = M0.shape[0]
+    if M0.shape != (n, n) or M1.shape != (n, n) or n < 1:
+        raise MatrixError(
+                'M0 and M1 both need to be square and of the same size >= 1')
+
+    b = np.zeros(n + 1)
+    for k in range(n + 1):
+        for choice in nChoosek(n, k):
+            # if choice[i] == True => select wi, otherwise vi:
+            M = np.where(choice, M1.T, M0.T)
+            b[k] += det(M)
+    return(np.poly1d(b[::-1]))
 
 
 class CT_System():
@@ -186,9 +261,6 @@ class CT_LTI_System(CT_System):
 
     def stepResponse(self, t=None):
         """
-        Step Response
-        +++++++++++++
-
         Returns (t, ystep), where
 
             ystep :  Step response
@@ -208,9 +280,6 @@ class CT_LTI_System(CT_System):
 
     def impulseResponse(self, t=None):
         """
-        Impulse Response
-        +++++++++++++
-
         Returns (t, yimpulse), where
 
             yimpulse :  Impulse response (*without* direct term D)
@@ -227,32 +296,99 @@ class CT_LTI_System(CT_System):
         y = [C * expm(A * ti) * B for ti in t]
         return((t, np.array(y).reshape(-1, self.links[1])))
 
-    def freqResponse(self, t=None):
-        """Frequency response"""
-        # see Feedback System, page 153
-        raise NotImplementedError
+    def freqResponse(self, f=None):
+        """
+        Returns (f, r), where
+
+            f    : Array of frequencies
+            r    : (Complex) frequency response
+
+        f is either provided as an argument to thin function or determined
+        automatically.
+        """
+        # see [astrom_feedback]_, page 153
+
+        # Automatically determine frequency axis:
+        if f is None:
+            t = self._tResponse()
+            dt = t[1] - t[0]
+            T = t[-1] + dt
+            fmax = 1. / (2 * dt)
+            fmin = 1. / T
+            f = np.logspace(np.log10(fmin), np.log10(fmax), 200)
+
+        # prepare empty lists for results:
+        nin, nout = self.links
+        fr = []
+        for i in range(nout):
+            fr.append([[]] * nin)
+
+        # calculate transfer function
+        b, a = self.tf
+
+        # if SISO, pack b into 1x1 list:
+        if self.links == (1, 1):
+            b = [[b]]
+
+        # evaluate tf(2*pi*i*f) for each input-output combination:
+        for i in range(nout):
+            for j in range(nin):
+                s = 2 * np.pi * 1j * f
+                fr[i][j] = b[i][j](s) / a(s)
+
+        # if SISO, unpack b from 1x1 list:
+        if self.links == (1, 1):
+            return(f, fr[0][0])
+        else:
+            return(f, fr)
 
     @property
     def tf(self):
         """
-        Transfer Function
-        +++++++++++++++++
-
-        Transfer-function representation (b, a) of the system. Returns
+        Transfer-function representation [b, a] of the system. Returns
         numerator (b) and denominator (a) coefficients.
 
-                 b[0] * s**n + ... + b[n] * s**0
+                 b[0] * s**0 + ... + b[m] * s**m
         G(s) =  ---------------------------------
-                 a[0] * s**m + ... + a[m] * s**0
+                 a[0] * s**0 + ... + a[n] * s**n
         """
+
         A, B, C, D = self._A, self._B, self._C, self._D
-        a = np.poly(A)
-        tfs = [[]]
-        for outp in range(self.links[1]):
-            tfs.append([])
-            for inp in range(self.links[0]):
-                tfs[outp].append((bs[outp], a))
-        return(tfs)
+        n = self.order
+        nin, nout = self.links
+
+        # Denominator (poles):
+        a = poly(A, -np.eye(n))
+
+        # create list to hold nominator polynomials and gains:
+        b = []
+        for i in range(nout):
+            b.append([[]] * nin)
+        G = np.zeros((nout, nin))
+
+        # There is 1 nominator per input-output combination:
+        for i in range(nout):
+            for j in range(nin):
+                # DC gain:
+                G[i][j] = float(D[i:i+1, j:j+1] -
+                                C[i:i+1, :] * A.I * B[:, j:j+1])
+
+                # Nominator polynomial:
+                M0 = np.bmat([[A, B[:, j:j+1]],
+                              [C[i:i+1, :], D[i:i+1, j:j+1]]])
+                M1 = np.bmat([[-np.eye(n), np.zeros((n, 1))],
+                              [np.zeros((1, n)), np.zeros((1, 1))]])
+                b[i][j] = poly(M0, M1)
+
+                # Adjust gain:
+                b[i][j] = b[i][j] * G[i][j] / (b[i][j][0] / a[0])
+
+        # For a SISO-system do not return a list of nominator polynomials but
+        # simply *the* nominator polynomial:
+        if self.links == (1, 1):
+            return([b[0][0], a])
+        else:  # MIMO
+            return([b, a])
 
     @property
     def Thetaphi(self):
@@ -260,8 +396,41 @@ class CT_LTI_System(CT_System):
 
     @property
     def zpk(self):
-        """Gain, Pole, Zero representation of the system"""
-        raise NotImplementedError
+        """
+        Gain, Pole, Zero representation of the system. Returns a tuple
+        (z, p, k) with z the zeros, p the poles, and k the gain of the system.
+        p is an array. The format of z and k depends on the number of inputs
+        and outputs of the system:
+
+        For a SISO system z is an array and k is float. For a system with more
+        inputs or outputs, z and k are lists of 'shape' (nout, nin) containing
+        arrays and floats, respectively.
+        """
+
+        b, a = self.tf
+        nin, nout = self.links
+
+        # if SISO, pack b into 1x1 list:
+        if self.links == (1, 1):
+            b = [[b]]
+
+        gain = np.zeros((nout, nin))
+        zeros = []
+        for i in range(nout):
+            zeros.append([[]] * nin)
+
+        poles = np.roots(a)
+        for i in range(nout):
+            for j in range(nin):
+                gain[i][j] = b[i][j][0] / a[0]
+                zeros[i][j] = np.roots(b[i][j])
+
+        # Simplification for SISO system:
+        if self.links == (1, 1):
+            gain = gain[0, 0]
+            zeros = zeros[0][0]
+
+        return(zeros, poles, gain)
 
 
 def Thetaphi(b, a):
@@ -426,47 +595,44 @@ class DT_LTI_System(object):
 
 
 if __name__ == '__main__':
-#    import matplotlib.pyplot as pl
-#    pl.close('all')
-#
-#    w0 = 2 * np.pi * 100e3
-#    zeta = 0.5
-#    k = 1.
-#
-#    A = np.matrix([[0, w0], [-w0, -2 * zeta * w0]])
-#    B = np.matrix([0, k * w0]).T
-#    C = np.matrix([1., 0.])
-#    D = np.matrix([0.])
-#
-#    G = CT_LTI_System(A, B, C, D)
-#
-#    pl.figure()
-#    pl.plot(*G.stepResponse())
+    import matplotlib.pyplot as pl
+    pl.close('all')
 
-    for i in range(1000):
-        M = np.random.normal(loc=0, scale=3, size=(20, 20))
-        det = determinant(M)
-        if det / np.linalg.det(M) - 1 > 1e-12:
-            print(M)
-            break
+    w0 = 2 * np.pi * 100e3
+    zeta = 0.1
+    k = 1.
 
-#    pl.plot(*G.impulseResponse())
-#
-#    # "short-circuit" filter (output = input):
-#    filter0 = [np.ones(1.), np.ones(1.)]
-#    # XXX low-pass?
-#    filter1 = [np.array([6./50.]), np.array([1, -44./50.])]
-#
-#    Nsamples = 50
-#    A, B, C, D = signal.tf2ss(*filter1)
-#    At = A.reshape((1,) + A.shape).repeat(Nsamples, axis=0)
-#    Bt = B.reshape((1,) + B.shape).repeat(Nsamples, axis=0)
-#    Ct = C.reshape((1,) + C.shape).repeat(Nsamples, axis=0)
-#    Dt = D.reshape((1,) + D.shape).repeat(Nsamples, axis=0)
-#
-#    sys = DT_LTV_System(At, Bt, Ct, Dt, np.zeros((1, 1)))
-#    Yt = sys.feed(np.ones((1, Nsamples)))
-#
-#    pl.figure()
-#    pl.plot(np.ones(Nsamples), 'ko-')
-#    pl.plot(Yt.T, 'bo-')
+    A = np.matrix([[0, w0], [-w0, -2 * zeta * w0]])
+    B = np.matrix([0, k * w0]).T
+    C = np.matrix([10., 0.])
+    D = np.matrix([0.])
+
+    G = CT_LTI_System(A, B, C, D)
+    G.tf
+
+    pl.figure()
+    pl.plot(*G.stepResponse())
+
+    fig, ax1 = pl.subplots()
+    f, r = G.freqResponse()
+    ax1.semilogx(f, 20 * np.log10(np.abs(r)), r'k-')
+    ax1.set_xlabel('Frequency (Hz)')
+    ax1.set_ylabel('Gain (dB)')
+
+    ax2 = ax1.twinx()
+    ax2.semilogx(f, np.angle(r) / np.pi, r'k--')
+    ax2.set_ylabel('Phase ($\pi$)', rotation=-90)
+
+    fig, ax = pl.subplots()
+    pl.plot(np.real(r), np.imag(r))
+    ax.set_aspect('equal')
+    pl.axhline(y=0, color='k')
+    pl.axvline(x=0, color='k')
+    pl.plot([-1], [0], r'ko')
+    pl.xlim([-3, 1])
+    pl.ylim([-1.5, 1.5])
+
+#    list(nChoosek(2, 1))
+#    M1 = np.eye(2)
+#    M2 = np.eye(2)
+#    b = poly(M1, 4*M2)
