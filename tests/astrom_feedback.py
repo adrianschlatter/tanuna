@@ -13,9 +13,10 @@ independent source (such as text books). Important references are:
 """
 
 import sys
-sys.path.append('..')
 import unittest
 import numpy as np
+from tools import almostEqual
+sys.path.append('..')
 import dynamics as dyn
 
 
@@ -54,30 +55,11 @@ class Test_BalanceSystem(unittest.TestCase):
                         [0, l * m / mu, 0, g * (l * m)**2 * Mt / mu**2],
                         [Jt / mu, 0, g * (l * m)**3 / mu**2, 0],
                         [l * m / mu, 0, g * (l * m)**2 * Mt / mu**2, 0]])
-        ssq = np.sum(np.array(Wr - self.G.Wr)**2)
-        self.assertTrue(ssq < 1e-30)
+        self.assertTrue(almostEqual(self.G.Wr, Wr))
 
     def test_reachable(self):
         """Reachability"""
         self.assertTrue(self.G.reachable)
-
-    def test_tf(self):
-        """Transfer function of MOSI system"""
-        m = self.m
-        l = self.l
-        g = self.g
-        Mt = self.Mt
-        Jt = self.Jt
-
-        bTheta = np.array([m * l])
-        aTheta = np.array([Mt * Jt - (m * l)**2, 0, -Mt * m * g * l])
-
-        bp = np.array([Jt, 0, -m * g * l])
-        ap = np.array([Mt * Jt - (m * l)**2, 0, -Mt * m * g * l, 0, 0])
-
-        tf = [[(bTheta, aTheta)],
-              [(bp, ap)]]
-        self.assertTrue(tf == self.G.tf)
 
 
 if __name__ == '__main__':
