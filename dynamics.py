@@ -213,13 +213,13 @@ class CT_LTI_System(CT_System):
         return(self._D.T.shape)
 
     @property
-    def eigenValues(self):
+    def poles(self):
         """Eigenvalues of the state matrix"""
-        return(np.linalg.eigvals(self._A))
+        return(self.zpk[1])
 
     @property
     def stable(self):
-        return(np.all(self.eigenValues.real < 0))
+        return(np.all(self.poles.real < 0))
 
     @property
     def Wo(self):
@@ -251,8 +251,8 @@ class CT_LTI_System(CT_System):
         """Automatically determines appropriate time axis for step- and
         impulse-response plotting"""
 
-        tau = np.abs(1. / self.eigenValues.real)
-        f = self.eigenValues.imag / (2 * np.pi)
+        tau = np.abs(1. / self.poles.real)
+        f = self.poles.imag / (2 * np.pi)
         period = np.abs(1. / f[f != 0])
         timescales = np.concatenate([tau, period])
         dt = timescales.min() / 20.
@@ -389,10 +389,6 @@ class CT_LTI_System(CT_System):
             return([b[0][0], a])
         else:  # MIMO
             return([b, a])
-
-    @property
-    def Thetaphi(self):
-        raise NotImplementedError
 
     @property
     def zpk(self):
@@ -598,41 +594,53 @@ if __name__ == '__main__':
     import matplotlib.pyplot as pl
     pl.close('all')
 
-    w0 = 2 * np.pi * 100e3
-    zeta = 0.1
+    w0 = 2 * np.pi * 10
+    zeta = 0.5
     k = 1.
 
     A = np.matrix([[0, w0], [-w0, -2 * zeta * w0]])
     B = np.matrix([0, k * w0]).T
-    C = np.matrix([10., 0.])
+    C = np.matrix([k, 0.])
     D = np.matrix([0.])
 
     G = CT_LTI_System(A, B, C, D)
-    G.tf
 
     pl.figure()
+
+    # STEP RESPONSE
+    pl.subplot(4, 1, 1)
+    pl.title('Step-Response')
     pl.plot(*G.stepResponse())
+    pl.xlabel('Time After Step (s)')
+    pl.ylabel('y')
 
-    fig, ax1 = pl.subplots()
-    f, r = G.freqResponse()
-    ax1.semilogx(f, 20 * np.log10(np.abs(r)), r'k-')
+    # IMPULSE RESPONSE
+    pl.subplot(4, 1, 2)
+    pl.title('Impulse-Response')
+    pl.plot(*G.impulseResponse())
+    pl.xlabel('Time After Impulse (s)')
+    pl.ylabel('y')
+
+    # BODE PLOT
+    ax1 = pl.subplot(4, 1, 3)
+    ax1.set_title('Bode Plot')
+    f, Chi = G.freqResponse()
+    ax1.semilogx(f, 20 * np.log10(np.abs(Chi)), r'b-')
     ax1.set_xlabel('Frequency (Hz)')
-    ax1.set_ylabel('Gain (dB)')
-
+    ax1.set_ylabel('Magnitude (dB)')
     ax2 = ax1.twinx()
-    ax2.semilogx(f, np.angle(r) / np.pi, r'k--')
-    ax2.set_ylabel('Phase ($\pi$)', rotation=-90)
+    ax2.semilogx(f, np.angle(Chi) / np.pi, r'r-')
+    ax2.set_ylabel('Phase ($\pi$)')
 
-    fig, ax = pl.subplots()
-    pl.plot(np.real(r), np.imag(r))
+    # NYQUIST PLOT
+    ax = pl.subplot(4, 1, 4)
+    pl.title('Nyquist Plot')
+    pl.plot(np.real(Chi), np.imag(Chi))
+    pl.plot([-1], [0], r'ro')
+    pl.xlim([-2.5, 2])
+    pl.ylim([-1.5, 0.5])
     ax.set_aspect('equal')
     pl.axhline(y=0, color='k')
     pl.axvline(x=0, color='k')
-    pl.plot([-1], [0], r'ko')
-    pl.xlim([-3, 1])
-    pl.ylim([-1.5, 1.5])
-
-#    list(nChoosek(2, 1))
-#    M1 = np.eye(2)
-#    M2 = np.eye(2)
-#    b = poly(M1, 4*M2)
+    pl.xlabel('Real Part')
+    pl.ylabel('Imaginary Part')

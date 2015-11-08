@@ -42,13 +42,13 @@ Let's start with some examples based on a continuous-time, second-order LTI SISO
 	import dynamics as dyn
 	import numpy as np
 
-	w0 = 2*np.pi*100e3
-	zeta = 0.7
+	w0 = 2 * np.pi * 10
+	zeta = 0.5
 	k = 1.
 
 	A = np.matrix([[0, w0], [-w0, -2*zeta*w0]])
 	B = np.matrix([0, k*w0]).T
-	C = np.matrix([1., 0.])
+	C = np.matrix([k, 0.])
 	D = np.matrix([0.])
 
 	G = dyn.CT_LTI_System(A, B, C, D)
@@ -61,13 +61,13 @@ This creates the system G from state-space matrices A, B, C, D. The system provi
 	import numpy as np
 	import matplotlib.pyplot as pl
 
-	w0 = 2*np.pi*100e3
-	zeta = 0.7
+	w0 = 2 * np.pi * 10
+	zeta = 0.5
 	k = 1.
 
 	A = np.matrix([[0, w0], [-w0, -2*zeta*w0]])
 	B = np.matrix([0, k*w0]).T
-	C = np.matrix([1., 0.])
+	C = np.matrix([k, 0.])
 	D = np.matrix([0.])
 
 	G = dyn.CT_LTI_System(A, B, C, D)
@@ -76,63 +76,67 @@ This creates the system G from state-space matrices A, B, C, D. The system provi
 
 	>>> G.stable
 	True
-	>>> G.eigenValues
-	array([-439822.97150257+448709.18174495j, -439822.97150257-448709.18174495j])
+	>>> G.poles
+	array([-31.41592654+54.41398093j, -31.41592654-54.41398093j])
 	>>> G.reachable
 	True
 	>>> # Reachability matrix:
 	... G.Wr
-	XXX
+        matrix([[    0.        ,  3947.84176044],
+                [   62.83185307, -3947.84176044]])
 	>>> G.observable
 	True
 	>>> # Observability matrix:
 	... G.Wo
-	XXX
-
-.. todo:: Include correct output for reachability- and observability matrices in the code example above.
+        matrix([[  1.        ,   0.        ],
+                [  0.        ,  62.83185307]])
 
 Furthermore, it calculates step- and impulse-responses, Bode- and Nyquist-plots:
 
 .. testcode:: LTI_G
 
-	pl.figure()
-	
-	# STEP RESPONSE
-	pl.subplot(2, 2, 1)
-	pl.title('Step-Response')
-	pl.plot(*G.stepResponse())
-	pl.xlabel('Time After Step (s)')
-	pl.ylabel('y')
-	
-	# IMPULSE RESPONSE
-	pl.subplot(2, 2, 2)
-	pl.plot(*G.impulseResponse())
-	pl.xlabel('Time After Impulse (s)')
-	pl.ylabel('y')
-	
-	# BODE PLOT
-	ax1 = pl.subplot(2, 2, 3)
-	ax1.set_title('Bode Plot')
-	f, Chi = G.freqResponse()
-	ax1.semilogx(f[1:], 20 * np.log10(np.abs(Chi[1:] / Ch[0])),
-		     r'b-')
-	ax1.set_xlabel('Frequency (Hz)')
-	ax1.set_ylabel('Magnitude (dB)')
-	ax2 = ax1.twinx()
-	ax2.semilogx(f, np.angle(Chi) / np.pi, r'o-')
-	ax2.set_ylabel('Phase ($\pi$)')
-	
-	# NYQUIST PLOT
-	pl.subplot(2, 2, 4)
-	pl.title('Nyquist Plot')
-	pl.plot(np.real(Chi), np.imag(Chi), r'k-')
-	pl.plot([-1], [0], r'ro')
-	pl.axhline(y=0)
-	pl.axvline(x=0)
-	pl.xlabel('Real Part')
-	pl.ylabel('Imaginary Part')
+        pl.figure()
 
-.. todo:: Show the plots that the above code will generate
+        # STEP RESPONSE
+        pl.subplot(4, 1, 1)
+        pl.title('Step-Response')
+        pl.plot(*G.stepResponse())
+        pl.xlabel('Time After Step (s)')
+        pl.ylabel('y')
+
+        # IMPULSE RESPONSE
+        pl.subplot(4, 1, 2)
+        pl.title('Impulse-Response')
+        pl.plot(*G.impulseResponse())
+        pl.xlabel('Time After Impulse (s)')
+        pl.ylabel('y')
+
+        # BODE PLOT
+        ax1 = pl.subplot(4, 1, 3)
+        ax1.set_title('Bode Plot')
+        f, Chi = G.freqResponse()
+        ax1.semilogx(f, 20 * np.log10(np.abs(Chi)), r'b-')
+        ax1.set_xlabel('Frequency (Hz)')
+        ax1.set_ylabel('Magnitude (dB)')
+        ax2 = ax1.twinx()
+        ax2.semilogx(f, np.angle(Chi) / np.pi, r'r-')
+        ax2.set_ylabel('Phase ($\pi$)')
+
+        # NYQUIST PLOT
+        ax = pl.subplot(4, 1, 4)
+        pl.title('Nyquist Plot')
+        pl.plot(np.real(Chi), np.imag(Chi))
+        pl.plot([-1], [0], r'ro')
+        pl.xlim([-2.5, 2])
+        pl.ylim([-1.5, 0.5])
+        ax.set_aspect('equal')
+        pl.axhline(y=0, color='k')
+        pl.axvline(x=0, color='k')
+        pl.xlabel('Real Part')
+        pl.ylabel('Imaginary Part')
+
+
+.. image:: figures/LinearResponse.svg
 
 The duration of the trace and the density of samples is automatically determined for you based on the Eigenvalues of the system (but you can provide your own if you prefer).
 
