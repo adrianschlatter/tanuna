@@ -23,7 +23,7 @@ class Test_2ndOrderSystem(unittest.TestCase):
 
         A = np.matrix([[0, w0], [-w0, -2*zeta*w0]])
         B = np.matrix([0, k*w0]).T
-        C = np.matrix([k, 0.])
+        C = np.matrix([1., 0.])
         D = np.matrix([0.])
 
         self.G = dyn.CT_LTI_System(A, B, C, D)
@@ -46,7 +46,7 @@ class Test_2ndOrderSystem(unittest.TestCase):
         z = np.array([])
         p = self.w0 * np.array([-self.zeta + 1j * np.sqrt(1 - self.zeta**2),
                                 -self.zeta - 1j * np.sqrt(1 - self.zeta**2)])
-        k = self.k**2
+        k = self.k
         Z, P, K = self.G.zpk
         equal = almostEqual(Z, z) and almostEqual(P, p) and almostEqual(K, k)
         self.assertTrue(equal)
@@ -59,8 +59,8 @@ class Test_2ndOrderSystem(unittest.TestCase):
 
     def test_Wo(self):
         """Observability matrix"""
-        Wo = self.k * np.matrix([[1., 0.],
-                                 [0., self.w0]])
+        Wo = np.matrix([[1., 0.],
+                        [0., self.w0]])
         self.assertTrue(np.all(self.G.Wo == Wo))
 
     def test_reachable(self):
@@ -74,7 +74,7 @@ class Test_2ndOrderSystem(unittest.TestCase):
     def test_tf(self):
         """Transfer function"""
         a = np.poly1d([1., 2 * self.zeta * self.w0, self.w0**2], variable='s')
-        b = np.poly1d([(self.k * self.w0)**2], variable='s')
+        b = np.poly1d([self.k * self.w0**2], variable='s')
         btf, atf = self.G.tf
         self.assertTrue(almostEqual(btf, b) and almostEqual(atf, a))
 
