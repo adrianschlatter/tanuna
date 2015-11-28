@@ -12,11 +12,9 @@ independent source (such as text books). Important references are:
 @author: Adrian Schlatter
 """
 
-import sys
 import unittest
 import numpy as np
 from tools import almostEqual
-sys.path.append('..')
 import dynamics as dyn
 
 

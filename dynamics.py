@@ -25,6 +25,10 @@ class MatrixError(Exception):
     pass
 
 
+class ConnectionError(Exception):
+    pass
+
+
 def determinant(M):
     """Calculates the determinant of a square matrix M"""
 
@@ -140,6 +144,25 @@ def poly(M0, M1):
     return(np.poly1d(b[::-1]))
 
 
+def connect(G, H, Gout=None, Hin=None):
+    if issubclass(type(H), type(G)):
+        try:
+            connection = H.__rconnect__(G, Gout, Hin)
+        except AttributeError:
+            connection = NotImplemented
+        if connection is NotImplemented:
+            connection = G.__connect__(H, Gout, Hin)
+    else:
+        try:
+            connection = G.__connect__(H, Gout, Hin)
+        except AttributeError:
+            connection = NotImplemented
+        if connection is NotImplemented:
+            connection = H.__rconnect__(G, Gout, Hin)
+
+    return(connection)
+
+
 class CT_System():
     """
     Describes a continuous-time system with dynamics described by ordinary
@@ -200,7 +223,11 @@ class CT_LTI_System(CT_System):
         if x0 is None:
             self.x = np.matrix(np.zeros((A.shape[0], 1)))
         else:
-            self.x = x0
+            self.x = np.matrix(x0)
+
+    @property
+    def ABCD(self):
+        return([self._A, self._B, self._C, self._D])
 
     @property
     def order(self):
@@ -353,7 +380,7 @@ class CT_LTI_System(CT_System):
                  a[0] * s**0 + ... + a[n] * s**n
         """
 
-        A, B, C, D = self._A, self._B, self._C, self._D
+        A, B, C, D = self.ABCD
         n = self.order
         nin, nout = self.links
 
@@ -427,6 +454,167 @@ class CT_LTI_System(CT_System):
             zeros = zeros[0][0]
 
         return(zeros, poles, gain)
+
+    def __add__(self, right):
+        G = self
+        nG = G.order
+        if issubclass(type(right), CT_LTI_System):
+            H = right
+            nH = H.order
+
+            A = np.bmat([[G._A, np.zeros((nG, nH))],
+                         [np.zeros((nH, nG)), H._A]])
+            B = np.vstack([G._B, H._B])
+            C = np.hstack([G._C, H._C])
+            D = G._D + H._D
+            x0 = np.vstack([G.x, H.x])
+            return(CT_LTI_System(A, B, C, D, x0))
+        elif issubclass(type(right), np.matrix):
+            if right.shape != G._D.shape:
+                raise MatrixError('Shapes of right and self._D have to match')
+            A = G._A
+            B = G._B
+            C = G._C
+            D = G._D + right
+            x0 = G.x
+            return(CT_LTI_System(A, B, C, D, x0))
+        else:
+            return(NotImplementedError)
+
+    def __radd__(self, left):
+        return(NotImplementedError)
+
+    def __rsub__(self, left):
+        raise NotImplementedError
+
+    def __connect__(self, right, Gout=None, Hin=None):
+        H = self
+        G = right
+        if issubclass(type(G), CT_LTI_System):
+            # Prepare Gout, Hin:
+            # ===============================
+            if Gout is None:
+                # connect all outputs:
+                Gout = np.arange(G.links[1])
+            if Hin is None:
+                # connect all inputs
+                Hin = np.arange(H.links[0])
+            if len(Gout) != len(Hin):
+                raise ConnectionError(
+                        'Number of inputs does not match number of outputs')
+
+            # Prepare connection matrices:
+            # ===============================
+
+            # u_h = Sh * y_g:
+            Sh = np.matrix(np.zeros((H.links[0], G.links[1])))
+            for k in range(len(Hin)):
+                i = Hin[k]
+                j = Gout[k]
+                Sh[i, j] = 1.
+
+            # u_h = sh * u_h,unconnected:
+            sh = np.matrix(np.zeros((H.links[0], H.links[0] - len(Hin))))
+            u_h_unconnected = list(set(range(H.links[0])) - set(Hin))
+            sh[u_h_unconnected, :] = np.eye(H.links[0] - len(Hin))
+
+            # y_g,unconnected = sg * y_g:
+            sg = np.matrix(np.zeros((G.links[1] - len(Gout), G.links[1])))
+            y_g_unconnected = list(set(range(G.links[1])) - set(Gout))
+            sg[:, y_g_unconnected] = np.eye(G.links[1] - len(Gout))
+
+            # Setup state matrices:
+            # ===============================
+
+            nH = H.order
+            nG = G.order
+
+            A = np.bmat([[G._A, np.zeros((nG, nH))],
+                         [H._B * Sh * G._C, H._A]])
+            B = np.bmat([[G._B, np.zeros((nG, len(u_h_unconnected)))],
+                         [H._B * Sh * G._D, H._B * sh]])
+            C = np.bmat([[sg * G._C, np.zeros((len(y_g_unconnected), nH))],
+                         [H._D * Sh * G._C, H._C]])
+            D = np.bmat([[sg * G._D, np.zeros((len(y_g_unconnected),
+                                               len(u_h_unconnected)))],
+                         [H._D * Sh * G._D, H._D * sh]])
+            x0 = np.vstack([G.x, H.x])
+        elif issubclass(type(G), CT_System):
+            # delegate to super class:
+            return(G.__rconnect__(H, Gout, Hin))
+        elif issubclass(type(G), np.matrix):
+            # Multiply u by matrix before feeding into H:
+            A = np.matrix(H._A)
+            B = H._B * G
+            C = np.matrix(H._C)
+            D = H._D * G
+            x0 = np.matrix(H.x)
+        elif type(G) in [float, int]:
+            # Apply gain G on input side:
+            A = np.matrix(H._A)
+            B = np.matrix(H._B)
+            C = G * H._C
+            D = G * H._D
+            x0 = np.matrix(H.x)
+        else:
+            return(NotImplementedError)
+
+        return(CT_LTI_System(A, B, C, D, x0))
+
+    def __rconnect__(self, left, Gout=None, Hin=None):
+        G = self
+        H = left
+        if issubclass(type(H), CT_LTI_System):
+            return(H.__connect__(G, Gout, Hin))
+        elif issubclass(type(H), CT_System):
+            # delegate to super class:
+            return(H.__connect__(G, Gout, Hin))
+        elif issubclass(type(H), np.matrix):
+            # Multiply output of G by matrix:
+            A = np.matrix(G._A)
+            B = np.matrix(G._B)
+            C = H * G._C
+            D = H * G._D
+            x0 = np.matrix(G.x)
+        elif type(H) in [float, int]:
+            # Apply gain H on output side:
+            A = np.matrix(G._A)
+            B = np.matrix(G._B)
+            C = H * G._C
+            D = H * G._D
+            x0 = np.matrix(G.x)
+        else:
+            return(NotImplementedError)
+
+        return(CT_LTI_System(A, B, C, D, x0))
+
+    def __mul__(self, right):
+        return(self.__connect__(right))
+
+    def __rmul__(self, left):
+        return(self.__rconnect__(left))
+
+    def __neg__(self):
+        return(self * (-1))
+
+    def __truediv__(self, right):
+        if type(right) in [float, int]:
+            invright = 1. / float(right)
+            return(self * invright)
+        else:
+            raise NotImplementedError
+
+    def __iadd__(self, right):
+        raise NotImplementedError
+
+    def __isub__(self, right):
+        raise NotImplementedError
+
+    def __imul__(self, right):
+        raise NotImplementedError
+
+    def __idiv__(self, right):
+        raise NotImplementedError
 
 
 def Thetaphi(b, a):
@@ -594,6 +782,10 @@ if __name__ == '__main__':
     import matplotlib.pyplot as pl
     pl.close('all')
 
+    from CT_LTI import LowPass
+    J = connect(LowPass(10.), LowPass(10.), Gout=(), Hin=())
+    J = np.matrix([[1, 1]]) * J * np.matrix([[1], [1]])
+
     w0 = 2 * np.pi * 10
     zeta = 0.5
     k = 1.
@@ -604,6 +796,7 @@ if __name__ == '__main__':
     D = np.matrix([0.])
 
     G = CT_LTI_System(A, B, C, D)
+    G = -G + np.matrix(1.)
 
     pl.figure()
 
