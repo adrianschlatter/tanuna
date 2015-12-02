@@ -9,7 +9,7 @@ import unittest
 import numpy as np
 from tools import almostEqual
 import dynamics as dyn
-from CT_LTI import LowPass
+from CT_LTI import LowPass, Order2
 
 
 class Test_2ndOrderSystem(unittest.TestCase):
@@ -20,12 +20,7 @@ class Test_2ndOrderSystem(unittest.TestCase):
         self.zeta = zeta = 0.5
         self.k = k = 1.
 
-        A = np.matrix([[0, w0], [-w0, -2*zeta*w0]])
-        B = np.matrix([0, k*w0]).T
-        C = np.matrix([1., 0.])
-        D = np.matrix([0.])
-
-        self.G = dyn.CT_LTI_System(A, B, C, D)
+        self.G = Order2(w0, zeta, k)
 
     def test_order(self):
         self.assertEqual(self.G.order, 2)
@@ -75,15 +70,16 @@ class Test_2ndOrderSystem(unittest.TestCase):
         a = np.poly1d([1., 2 * self.zeta * self.w0, self.w0**2], variable='s')
         b = np.poly1d([self.k * self.w0**2], variable='s')
         btf, atf = self.G.tf
-        self.assertTrue(almostEqual(btf, b) and almostEqual(atf, a))
+        self.assertTrue(almostEqual(btf[0, 0], b) and almostEqual(atf, a))
 
     def test_freqResponse(self):
         """Frequency Response is tf(2*pi*1j*f)"""
         F = np.logspace(0, 2, 200)
         b, a = self.G.tf
-        R = b(2 * np.pi * 1j * F) / a(2 * np.pi * 1j * F)
+        R = b[0, 0](2 * np.pi * 1j * F) / a(2 * np.pi * 1j * F)
 
         f, r = self.G.freqResponse(F)
+        r.shape = (-1,)
         self.assertTrue(almostEqual(f, F) and almostEqual(r, R))
 
     def test_numberOperators(self):
@@ -182,7 +178,7 @@ class Test_MIMO(unittest.TestCase):
 
     def test_stepResponse(self):
         t, stepResp = self.MIMO.stepResponse()
-        shape = (len(t),) + self.MIMO.links
+        shape = self.MIMO.links[::-1] + (len(t),)
         self.assertEqual(stepResp.shape, shape)
 
     def test_freqResponse(self):

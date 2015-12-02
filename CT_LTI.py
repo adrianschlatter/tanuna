@@ -20,6 +20,19 @@ class LowPass(CT_LTI_System):
         D = np.matrix([[0.]])
         super(LowPass, self).__init__(A, B, C, D)
 
+
+class Order2(CT_LTI_System):
+    """XXX A second-order system with XXX"""
+
+    def __init__(self, w0, zeta, k):
+        A = np.matrix([[0, w0], [-w0, -2*zeta*w0]])
+        B = np.matrix([0, k*w0]).T
+        C = np.matrix([1., 0.])
+        D = np.matrix([0.])
+
+        super(Order2, self).__init__(A, B, C, D)
+
+
 if __name__ == '__main__':
     G = LowPass(10.)
     H = G * G

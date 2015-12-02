@@ -13,7 +13,6 @@ pyDynamics provides tools to work with dynamic systems. This includes
 """
 
 import numpy as np
-from numpy.linalg import det
 from scipy.linalg import expm
 
 
@@ -29,119 +28,48 @@ class ConnectionError(Exception):
     pass
 
 
-def determinant(M):
-    """Calculates the determinant of a square matrix M"""
+def minor(A, i, j):
+    """Returns matrix obtained by deleting row i and column j from matrix A."""
 
-    if len(M.shape) != 2:
-        raise MatrixError('M must have exactly 2 dimensions')
-    if M.shape[0] != M.shape[1]:
-        raise MatrixError('M is expected to be square')
+    rows, cols = A.shape
+    rows = set(range(rows))
+    cols = set(range(cols))
 
-    for row in range(M.shape[0]):
-        # lower-triangulars == 0?
-        try:
-            i = np.arange(0, row)[M[row, :row] != 0][0]
-            v_i = np.array(M[:, i].reshape(-1, 1))
-            w_i = np.array(v_i)
-            v_i[row:, 0] = 0.
-            w_i[:row, 0] = 0.
-
-            M1 = np.hstack((M[:, :i], v_i, M[:, i+1:]))
-            M2 = np.hstack((M[:, :i], w_i, M[:, i+1:]))
-#            print('Column splitting')
-            return(determinant(M1) + determinant(M2))
-        except IndexError:
-            pass    # all 0
-
-        # diagonal != 0?
-        if M[row, row] == 0:
-            try:
-                col2 = np.arange(row+1, M.shape[0])[M[row, row+1:] != 0][0]
-                Msw = np.hstack((M[:, :row],
-                                 M[:, col2:col2+1],
-                                 M[:, row+1:col2],
-                                 M[:, row:row+1],
-                                 M[:, col2+1:]))
-                return(-determinant(Msw))
-            except:
-                return(0)
-    return(M.diagonal().prod())
+    M = A[list(rows - set([i])), :]
+    M = M[:, list(cols - set([j]))]
+    return(M)
 
 
-def nChoosek(n, k):
-    """
-    Yields all possibilities of choosing k elements from an array of length n.
+def determinant(A):
+    """Determinant of square matrix A. Can handle matrices of poly1d."""
 
-    >>> list(nChoosek(3, 1))
-    ... [array([True, False, False]),
-    ...  array([False, True, False]),
-    ...  array([False, False, True])]
+    if A.shape == (1, 1):
+        return(A[0, 0])
 
-    Assume you have an array, you get all choices of k elements with
-
-    >>> x = np.array([5, 2, 8])
-    ... for choice in nChoosek(len(x), 1):
-    ...     choice = np.array(choice)
-    ...     print(x[choice])
-    ...
-    ... [5]
-    ... [2]
-    ... [8]
-    """
-
-    # These conditions end the recursion:
-    if k == 0:
-        yield [False] * n
-        return
-    if k == n:
-        yield [True] * n
-        return
-
-    # Otherwise, we have to recurse:
-    for subChoice in nChoosek(n - 1, k - 1):
-        # Select first element and recurse:
-        yield [True] + subChoice
-    for subChoice in nChoosek(n - 1, k):
-        # Do not select first element and recurse:
-        yield [False] + subChoice
+    cofacsum = 0.
+    for j in range(A.shape[1]):
+        cofacsum += (-1)**(0 + j) * A[0, j] * determinant(minor(A, 0, j))
+    return(cofacsum)
 
 
-def poly(M0, M1):
-    """
-    Returns the coefficients of the polynomial
+def cofactorMat(A):
+    """Cofactor matrix of matrix A. Can handle matrices of poly1d."""
 
-        p(s) = det(M0 + s*M1)
+    C = np.zeros(A.shape, dtype=object)
+    for i in range(A.shape[0]):
+        for j in range(A.shape[1]):
+            C[i, j] = (-1)**(i + j) * determinant(minor(A, i, j))
+    return(C)
 
-    with M0 and M1 square matrices of equal dimension.
 
-    Example:
+def polyDiag(polyList):
+    """Construct diagonal matrix from list of poly1d"""
 
-        b = np.array(-1, 2.5, 0)
-
-    refers to the polynomial
-
-        p(s) = -s**2 + 2.5*s + 0
-    """
-
-    # Let M0 = [v0, ..., v(n-1)], M1 = [w0, ..., w(n-1)]
-    # det(M0 + s*M1) = sum(det(x0, ..., x(n-1)) * s**k),
-    # where xi in [vi, wi]; k the number of xi in [w0, ..., w(n-1)]
-    # and the sum is running over all possibilities to choose the xi's.
-
-    M0 = np.matrix(M0)
-    M1 = np.matrix(M1)
-    n = M0.shape[0]
-    if M0.shape != (n, n) or M1.shape != (n, n) or n < 1:
-        raise MatrixError(
-                'M0 and M1 both need to be square and of the same size >= 1')
-
-    b = np.zeros(n + 1)
-    for k in range(n + 1):
-        for choice in nChoosek(n, k):
-            # if choice[i] == True => select wi, otherwise vi:
-            M = np.where(choice, M1.T, M0.T)
-            b[k] += det(M)
-    return(np.poly1d(b[::-1]))
+    N = len(polyList)
+    A = np.matrix(np.zeros((N, N), dtype=object))
+    for i in range(N):
+        A[i, i] = polyList[i]
+    return(A)
 
 
 def connect(G, H, Gout=None, Hin=None):
@@ -215,7 +143,7 @@ class CT_System():
 
 
 class CT_LTI_System(CT_System):
-    """Linear, time-invariant system"""
+    """Continuous-time, Linear, time-invariant system"""
 
     def __init__(self, A, B, C, D, x0=None):
         A, B, C, D = map(np.asmatrix, (A, B, C, D))
@@ -300,7 +228,7 @@ class CT_LTI_System(CT_System):
         if t is None:
             t = self._tResponse()
 
-        A, B, C, D = self._A, self._B, self._C, self._D
+        A, B, C, D = self.ABCD
         steady = D - C * A.I * B
         y = [C * A.I * expm(A * ti) * B + steady for ti in t]
         return((t, np.array(y).reshape(-1, self.links[1])))
@@ -344,30 +272,14 @@ class CT_LTI_System(CT_System):
             fmin = 1. / T
             f = np.logspace(np.log10(fmin), np.log10(fmax), 200)
 
-        # prepare empty lists for results:
-        nin, nout = self.links
-        fr = []
-        for i in range(nout):
-            fr.append([[]] * nin)
-
-        # calculate transfer function
         b, a = self.tf
+        s = 2 * np.pi * 1j * f
+        resp = np.zeros(b.shape + (len(f),), dtype=complex)
+        for i in range(b.shape[0]):
+            for j in range(b.shape[1]):
+                resp[i, j] = b[i, j](s) / a(s)
 
-        # if SISO, pack b into 1x1 list:
-        if self.links == (1, 1):
-            b = [[b]]
-
-        # evaluate tf(2*pi*i*f) for each input-output combination:
-        for i in range(nout):
-            for j in range(nin):
-                s = 2 * np.pi * 1j * f
-                fr[i][j] = b[i][j](s) / a(s)
-
-        # if SISO, unpack b from 1x1 list:
-        if self.links == (1, 1):
-            return(f, fr[0][0])
-        else:
-            return(f, fr)
+        return(f, resp)
 
     @property
     def tf(self):
@@ -381,41 +293,14 @@ class CT_LTI_System(CT_System):
         """
 
         A, B, C, D = self.ABCD
-        n = self.order
-        nin, nout = self.links
+        Aprime = polyDiag([np.poly1d([1, 0])] * self.order) - A
+        det = determinant(Aprime)
+        nout = self.links[1]
 
-        # Denominator (poles):
-        a = poly(A, -np.eye(n))
+        nominator = C * cofactorMat(Aprime).T * B + polyDiag([det] * nout) * D
+        denominator = det
 
-        # create list to hold nominator polynomials and gains:
-        b = []
-        for i in range(nout):
-            b.append([[]] * nin)
-        G = np.zeros((nout, nin))
-
-        # There is 1 nominator per input-output combination:
-        for i in range(nout):
-            for j in range(nin):
-                # DC gain:
-                G[i][j] = float(D[i:i+1, j:j+1] -
-                                C[i:i+1, :] * A.I * B[:, j:j+1])
-
-                # Nominator polynomial:
-                M0 = np.bmat([[A, B[:, j:j+1]],
-                              [C[i:i+1, :], D[i:i+1, j:j+1]]])
-                M1 = np.bmat([[-np.eye(n), np.zeros((n, 1))],
-                              [np.zeros((1, n)), np.zeros((1, 1))]])
-                b[i][j] = poly(M0, M1)
-
-                # Adjust gain:
-                b[i][j] = b[i][j] * G[i][j] / (b[i][j][0] / a[0])
-
-        # For a SISO-system do not return a list of nominator polynomials but
-        # simply *the* nominator polynomial:
-        if self.links == (1, 1):
-            return([b[0][0], a])
-        else:  # MIMO
-            return([b, a])
+        return(nominator, denominator)
 
     @property
     def zpk(self):
@@ -431,29 +316,15 @@ class CT_LTI_System(CT_System):
         """
 
         b, a = self.tf
-        nin, nout = self.links
 
-        # if SISO, pack b into 1x1 list:
-        if self.links == (1, 1):
-            b = [[b]]
-
-        gain = np.zeros((nout, nin))
-        zeros = []
-        for i in range(nout):
-            zeros.append([[]] * nin)
-
+        zeros = np.zeros(b.shape, dtype=list)
+        gains = np.zeros(b.shape)
+        for i in range(b.shape[0]):
+            for j in range(b.shape[1]):
+                zeros[i, j] = np.roots(b[i, j])
+                gains[i, j] = b[i, j][b[i, j].order]
         poles = np.roots(a)
-        for i in range(nout):
-            for j in range(nin):
-                gain[i][j] = b[i][j][0] / a[0]
-                zeros[i][j] = np.roots(b[i][j])
-
-        # Simplification for SISO system:
-        if self.links == (1, 1):
-            gain = gain[0, 0]
-            zeros = zeros[0][0]
-
-        return(zeros, poles, gain)
+        return(zeros, poles, gains)
 
     def __add__(self, right):
         G = self
@@ -818,6 +689,7 @@ if __name__ == '__main__':
     ax1 = pl.subplot(4, 1, 3)
     ax1.set_title('Bode Plot')
     f, Chi = G.freqResponse()
+    Chi.shape = (-1)
     ax1.semilogx(f, 20 * np.log10(np.abs(Chi)), r'b-')
     ax1.set_xlabel('Frequency (Hz)')
     ax1.set_ylabel('Magnitude (dB)')
