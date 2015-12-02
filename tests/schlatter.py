@@ -9,7 +9,27 @@ import unittest
 import numpy as np
 from tools import almostEqual
 import dynamics as dyn
-from CT_LTI import LowPass, Order2
+from CT_LTI import LowPass, HighPass, Order2
+
+
+class Test_MatrixTools(unittest.TestCase):
+    """Test the poly1d matrix tools"""
+
+    def test_determinant1x1(self):
+        A = np.matrix([[3]])
+        self.assertEqual(dyn.determinant(A), 3)
+
+    def test_determinant2x2(self):
+        A = np.matrix([[1, 2], [3., 4.]])
+        self.assertEqual(dyn.determinant(A), 1 * 4 - 3 * 2)
+
+    def test_cofactorMat1x1(self):
+        A = np.matrix([[5.]])
+        self.assertEqual(dyn.cofactorMat(A), np.matrix([[1.]]))
+
+    def test_minor1x1(self):
+        A = np.matrix([[0.5]])
+        self.assertEqual(dyn.minor(A, 0, 0).shape, (0, 0))
 
 
 class Test_2ndOrderSystem(unittest.TestCase):
@@ -40,8 +60,10 @@ class Test_2ndOrderSystem(unittest.TestCase):
         z = np.array([])
         p = self.w0 * np.array([-self.zeta + 1j * np.sqrt(1 - self.zeta**2),
                                 -self.zeta - 1j * np.sqrt(1 - self.zeta**2)])
-        k = self.k
+        k = self.k * self.w0**2
         Z, P, K = self.G.zpk
+        Z = Z[0, 0]
+        K = K[0, 0]
         equal = almostEqual(Z, z) and almostEqual(P, p) and almostEqual(K, k)
         self.assertTrue(equal)
 
@@ -122,7 +144,8 @@ class Test_1stOrderSystem(unittest.TestCase):
         Z = self.G.zpk[0]
         P = np.concatenate((self.G.zpk[1], self.G.zpk[1]))
         K = self.G.zpk[2]**2
-        self.assertTrue(np.all(z == Z) and almostEqual(p, P, tol=1e-4) and
+        self.assertTrue(np.all(z[0, 0] == Z[0, 0]) and
+                        almostEqual(p, P, tol=1e-4) and
                         almostEqual(k, K))
 
     def test_connectWithLeftMatrix(self):
@@ -137,7 +160,7 @@ class Test_1stOrderSystem(unittest.TestCase):
 
     def test_add(self):
         I = self.G + self.G
-        self.assertTrue(almostEqual(2., I.zpk[2]))
+        self.assertTrue(almostEqual(2 * self.G.zpk[2], I.zpk[2]))
 
     def test_add2(self):
         I = self.G + self.G
@@ -149,6 +172,16 @@ class Test_1stOrderSystem(unittest.TestCase):
                 passed = False
                 break
         self.assertTrue(passed)
+
+    def test_zpk(self):
+        """Issue #8: k of high-pass failed => test it"""
+
+        hp = HighPass(10, 2)
+        z, p, k = hp.zpk
+        b = float(k) * np.poly1d(np.poly(z[0, 0]))
+        a = np.poly1d(np.poly(p))
+        B, A = hp.tf
+        self.assertEqual((B[0, 0], A), (b, a))
 
 
 class Test_MIMO(unittest.TestCase):

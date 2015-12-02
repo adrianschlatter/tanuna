@@ -10,7 +10,7 @@ from dynamics import CT_LTI_System
 
 
 class LowPass(CT_LTI_System):
-    """Low-Pass Filter with 3-dB frequency fC and gain k"""
+    """Low-Pass Filter with 3-dB frequency fC and DC-gain k"""
 
     def __init__(self, fC, k=1.):
         wC = 2 * np.pi * fC
@@ -19,6 +19,14 @@ class LowPass(CT_LTI_System):
         C = np.eye(1.) * k * wC
         D = np.matrix([[0.]])
         super(LowPass, self).__init__(A, B, C, D)
+
+
+class HighPass(CT_LTI_System):
+    """High-Pass Filter with 3-dB frequency fC and pass-band gain k"""
+
+    def __init__(self, fC, k=1.):
+        hp = (-LowPass(fC, 1) + np.matrix(1)) * k
+        super(HighPass, self).__init__(*hp.ABCD)
 
 
 class Order2(CT_LTI_System):

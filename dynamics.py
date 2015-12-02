@@ -45,6 +45,8 @@ def determinant(A):
 
     if A.shape == (1, 1):
         return(A[0, 0])
+    if A.shape == (0, 0):
+        return(1.)
 
     cofacsum = 0.
     for j in range(A.shape[1]):
@@ -326,38 +328,6 @@ class CT_LTI_System(CT_System):
         poles = np.roots(a)
         return(zeros, poles, gains)
 
-    def __add__(self, right):
-        G = self
-        nG = G.order
-        if issubclass(type(right), CT_LTI_System):
-            H = right
-            nH = H.order
-
-            A = np.bmat([[G._A, np.zeros((nG, nH))],
-                         [np.zeros((nH, nG)), H._A]])
-            B = np.vstack([G._B, H._B])
-            C = np.hstack([G._C, H._C])
-            D = G._D + H._D
-            x0 = np.vstack([G.x, H.x])
-            return(CT_LTI_System(A, B, C, D, x0))
-        elif issubclass(type(right), np.matrix):
-            if right.shape != G._D.shape:
-                raise MatrixError('Shapes of right and self._D have to match')
-            A = G._A
-            B = G._B
-            C = G._C
-            D = G._D + right
-            x0 = G.x
-            return(CT_LTI_System(A, B, C, D, x0))
-        else:
-            return(NotImplementedError)
-
-    def __radd__(self, left):
-        return(NotImplementedError)
-
-    def __rsub__(self, left):
-        raise NotImplementedError
-
     def __connect__(self, right, Gout=None, Hin=None):
         H = self
         G = right
@@ -459,6 +429,42 @@ class CT_LTI_System(CT_System):
 
         return(CT_LTI_System(A, B, C, D, x0))
 
+    def __add__(self, right):
+        G = self
+        nG = G.order
+
+        if issubclass(type(right), CT_LTI_System):
+            H = right
+            nH = H.order
+
+            A = np.bmat([[G._A, np.zeros((nG, nH))],
+                         [np.zeros((nH, nG)), H._A]])
+            B = np.vstack([G._B, H._B])
+            C = np.hstack([G._C, H._C])
+            D = G._D + H._D
+            x0 = np.vstack([G.x, H.x])
+            return(CT_LTI_System(A, B, C, D, x0))
+        elif issubclass(type(right), np.matrix):
+            if right.shape != G._D.shape:
+                raise MatrixError('Shapes of right and self._D have to match')
+            A = G._A
+            B = G._B
+            C = G._C
+            D = G._D + right
+            x0 = G.x
+            return(CT_LTI_System(A, B, C, D, x0))
+        else:
+            raise NotImplementedError
+
+    def __radd__(self, left):
+        return(self + left)
+
+    def __sub__(self, right):
+        return(self + -right)
+
+    def __rsub__(self, left):
+        return(left + -self)
+
     def __mul__(self, right):
         return(self.__connect__(right))
 
@@ -474,18 +480,6 @@ class CT_LTI_System(CT_System):
             return(self * invright)
         else:
             raise NotImplementedError
-
-    def __iadd__(self, right):
-        raise NotImplementedError
-
-    def __isub__(self, right):
-        raise NotImplementedError
-
-    def __imul__(self, right):
-        raise NotImplementedError
-
-    def __idiv__(self, right):
-        raise NotImplementedError
 
 
 def Thetaphi(b, a):
@@ -653,7 +647,7 @@ if __name__ == '__main__':
     import matplotlib.pyplot as pl
     pl.close('all')
 
-    from CT_LTI import LowPass
+    from CT_LTI import LowPass, HighPass
     J = connect(LowPass(10.), LowPass(10.), Gout=(), Hin=())
     J = np.matrix([[1, 1]]) * J * np.matrix([[1], [1]])
 
@@ -667,7 +661,7 @@ if __name__ == '__main__':
     D = np.matrix([0.])
 
     G = CT_LTI_System(A, B, C, D)
-    G = -G + np.matrix(1.)
+    G = HighPass(10, 2)
 
     pl.figure()
 
