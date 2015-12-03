@@ -45,8 +45,8 @@ class Test_2ndOrderSystem(unittest.TestCase):
     def test_order(self):
         self.assertEqual(self.G.order, 2)
 
-    def test_links(self):
-        self.assertEqual(self.G.links, (1, 1))
+    def test_shape(self):
+        self.assertEqual(self.G.shape, (1, 1))
 
     def test_poles(self):
         self.assertTrue(almostEqual(self.G.poles, self.G.zpk[1]))
@@ -151,12 +151,12 @@ class Test_1stOrderSystem(unittest.TestCase):
     def test_connectWithLeftMatrix(self):
         M = np.matrix([[2], [0.3]])
         I = M * self.G
-        self.assertEqual(I.links, (1, 2))
+        self.assertEqual(I.shape, (2, 1))
 
     def test_connectWithRightMatrix(self):
         M = np.matrix([[0.3, 5]])
         I = self.G * M
-        self.assertEqual(I.links, (2, 1))
+        self.assertEqual(I.shape, (1, 2))
 
     def test_add(self):
         I = self.G + self.G
@@ -206,17 +206,17 @@ class Test_MIMO(unittest.TestCase):
 
     def test_impulseResponse(self):
         t, impResp = self.MIMO.impulseResponse()
-        shape = (len(t),) + self.MIMO.links
+        shape = self.MIMO.shape + (len(t),)
         self.assertEqual(impResp.shape, shape)
 
     def test_stepResponse(self):
         t, stepResp = self.MIMO.stepResponse()
-        shape = self.MIMO.links[::-1] + (len(t),)
+        shape = self.MIMO.shape + (len(t),)
         self.assertEqual(stepResp.shape, shape)
 
     def test_freqResponse(self):
         f, freqResp = self.MIMO.freqResponse()
-        shape = (len(f),) + self.MIMO.links
+        shape = self.MIMO.shape + (len(f),)
         self.assertEqual(freqResp.shape, shape)
 
 

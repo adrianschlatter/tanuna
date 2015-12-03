@@ -165,9 +165,9 @@ class CT_LTI_System(CT_System):
         return(self._A.shape[0])
 
     @property
-    def links(self):
-        """Number of inputs and outputs"""
-        return(self._D.T.shape)
+    def shape(self):
+        """Number of outputs and inputs"""
+        return(self._D.shape)
 
     @property
     def poles(self):
@@ -233,7 +233,7 @@ class CT_LTI_System(CT_System):
         A, B, C, D = self.ABCD
         steady = D - C * A.I * B
         y = [C * A.I * expm(A * ti) * B + steady for ti in t]
-        return((t, np.array(y).reshape(-1, self.links[1])))
+        return((t, np.array(y).reshape(-1, self.shape[0])))
 
     def impulseResponse(self, t=None):
         """
@@ -251,7 +251,7 @@ class CT_LTI_System(CT_System):
 
         A, B, C = self._A, self._B, self._C
         y = [C * expm(A * ti) * B for ti in t]
-        return((t, np.array(y).reshape(-1, self.links[1])))
+        return((t, np.array(y).reshape(-1, self.shape[0])))
 
     def freqResponse(self, f=None):
         """
@@ -297,7 +297,7 @@ class CT_LTI_System(CT_System):
         A, B, C, D = self.ABCD
         Aprime = polyDiag([np.poly1d([1, 0])] * self.order) - A
         det = determinant(Aprime)
-        nout = self.links[1]
+        nout = self.shape[0]
 
         nominator = C * cofactorMat(Aprime).T * B + polyDiag([det] * nout) * D
         denominator = det
@@ -336,10 +336,10 @@ class CT_LTI_System(CT_System):
             # ===============================
             if Gout is None:
                 # connect all outputs:
-                Gout = np.arange(G.links[1])
+                Gout = np.arange(G.shape[0])
             if Hin is None:
                 # connect all inputs
-                Hin = np.arange(H.links[0])
+                Hin = np.arange(H.shape[1])
             if len(Gout) != len(Hin):
                 raise ConnectionError(
                         'Number of inputs does not match number of outputs')
@@ -348,21 +348,21 @@ class CT_LTI_System(CT_System):
             # ===============================
 
             # u_h = Sh * y_g:
-            Sh = np.matrix(np.zeros((H.links[0], G.links[1])))
+            Sh = np.matrix(np.zeros((H.shape[1], G.shape[0])))
             for k in range(len(Hin)):
                 i = Hin[k]
                 j = Gout[k]
                 Sh[i, j] = 1.
 
             # u_h = sh * u_h,unconnected:
-            sh = np.matrix(np.zeros((H.links[0], H.links[0] - len(Hin))))
-            u_h_unconnected = list(set(range(H.links[0])) - set(Hin))
-            sh[u_h_unconnected, :] = np.eye(H.links[0] - len(Hin))
+            sh = np.matrix(np.zeros((H.shape[1], H.shape[1] - len(Hin))))
+            u_h_unconnected = list(set(range(H.shape[1])) - set(Hin))
+            sh[u_h_unconnected, :] = np.eye(H.shape[1] - len(Hin))
 
             # y_g,unconnected = sg * y_g:
-            sg = np.matrix(np.zeros((G.links[1] - len(Gout), G.links[1])))
-            y_g_unconnected = list(set(range(G.links[1])) - set(Gout))
-            sg[:, y_g_unconnected] = np.eye(G.links[1] - len(Gout))
+            sg = np.matrix(np.zeros((G.shape[0] - len(Gout), G.shape[0])))
+            y_g_unconnected = list(set(range(G.shape[0])) - set(Gout))
+            sg[:, y_g_unconnected] = np.eye(G.shape[0] - len(Gout))
 
             # Setup state matrices:
             # ===============================
