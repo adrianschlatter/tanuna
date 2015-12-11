@@ -6,7 +6,7 @@
 from setuptools import setup
 
 setup(name='tanuna',
-      version='0.1',
+      version='0.0',
       description='Python tools to work with dynamic systems',
       url='https://github.com/adrianschlatter/tanuna',
       author='Adrian Schlatter',
