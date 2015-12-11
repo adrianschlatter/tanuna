@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# pyDynamics documentation build configuration file, created by
+# tanuna documentation build configuration file, created by
 # sphinx-quickstart on Wed Oct 21 18:30:46 2015.
 #
 # This file is execfile()d with the current directory set to its
@@ -15,6 +15,9 @@
 import sys
 import os
 import shlex
+
+# on_rtd is whether we are on readthedocs.org, this line of code grabbed from docs.readthedocs.org
+on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
 
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
@@ -54,7 +57,7 @@ source_suffix = '.rst'
 master_doc = 'index'
 
 # General information about the project.
-project = u'pyDynamics'
+project = u'tanuna'
 copyright = u'2015, Adrian Schlatter'
 author = u'Adrian Schlatter'
 
@@ -119,7 +122,13 @@ todo_include_todos = True
 
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
+if not on_rtd:  # only import and set the theme if we're building docs locally
+    import sphinx_rtd_theme
+    html_theme = 'sphinx_rtd_theme'
+    html_theme_path = [sphinx_rtd_theme.get_html_theme_path()]
+
 html_theme = 'sphinx_rtd_theme'
+# html_theme = 'basic'
 
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the
@@ -211,7 +220,7 @@ html_static_path = ['_static']
 #html_search_scorer = 'scorer.js'
 
 # Output file base name for HTML help builder.
-htmlhelp_basename = 'pyDynamicsdoc'
+htmlhelp_basename = 'tanunadoc'
 
 # -- Options for LaTeX output ---------------------------------------------
 
@@ -233,7 +242,7 @@ latex_elements = {
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-  (master_doc, 'pyDynamics.tex', u'pyDynamics Documentation',
+  (master_doc, 'tatuna.tex', u'tatuna Documentation',
    u'Adrian Schlatter', 'manual'),
 ]
 
@@ -263,7 +272,7 @@ latex_documents = [
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    (master_doc, 'pydynamics', u'pyDynamics Documentation',
+    (master_doc, 'tatuna', u'tatuna Documentation',
      [author], 1)
 ]
 
@@ -277,8 +286,8 @@ man_pages = [
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-  (master_doc, 'pyDynamics', u'pyDynamics Documentation',
-   author, 'pyDynamics', 'One line description of project.',
+  (master_doc, 'tatuna', u'tatuna Documentation',
+   author, 'tatuna', 'One line description of project.',
    'Miscellaneous'),
 ]
 

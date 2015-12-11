@@ -8,8 +8,8 @@ Tests against analytical results of a simple 2nd order linear system.
 import unittest
 import numpy as np
 from tools import almostEqual
-import dynamics as dyn
-from CT_LTI import LowPass, HighPass, Order2
+import tanuna as dyn
+from tanuna.CT_LTI import LowPass, HighPass, Order2
 
 
 class Test_MatrixTools(unittest.TestCase):

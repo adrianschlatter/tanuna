@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-pyDynamics provides tools to work with dynamic systems. This includes
+tanuna provides tools to work with dynamic systems. This includes
 
 * continuous- and discrete-time systems
 * linear and non-linear systems
@@ -93,7 +93,7 @@ def connect(G, H, Gout=None, Hin=None):
     return(connection)
 
 
-class CT_System():
+class CT_System(object):
     """
     Describes a continuous-time system with dynamics described by ordinary
     differential equations.

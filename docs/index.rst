@@ -1,4 +1,4 @@
-.. pyDynamics documentation master file, created by
+.. tanuna documentation master file, created by
    sphinx-quickstart on Wed Oct 21 18:30:46 2015.
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
@@ -8,10 +8,10 @@
 
 .. todolist::
 
-pyDynamics
-++++++++++
+tanuna
+++++++
 
-pyDynamics provides tools to work with dynamic systems. This includes
+tanuna provides tools to work with dynamic systems. This includes
 
 * continuous- and discrete-time systems
 * linear and non-linear systems
@@ -39,7 +39,7 @@ Let's start with some examples based on a continuous-time, second-order LTI SISO
 
 .. testcode::
 
-	import dynamics as dyn
+	import tanuna as dyn
 	import numpy as np
 
 	w0 = 2 * np.pi * 10
@@ -57,7 +57,7 @@ This creates the system G from state-space matrices A, B, C, D. The system provi
 
 .. testsetup:: LTI_G
 
-	import dynamics as dyn
+	import tanuna as dyn
 	import numpy as np
 	import matplotlib.pyplot as pl
 
@@ -115,17 +115,17 @@ Furthermore, it calculates step- and impulse-responses, Bode- and Nyquist-plots:
         ax1 = pl.subplot(4, 1, 3)
         ax1.set_title('Bode Plot')
         f, Chi = G.freqResponse()
-        ax1.semilogx(f, 20 * np.log10(np.abs(Chi)), r'b-')
+        ax1.semilogx(f, 20 * np.log10(np.abs(Chi[0, 0])), r'b-')
         ax1.set_xlabel('Frequency (Hz)')
         ax1.set_ylabel('Magnitude (dB)')
         ax2 = ax1.twinx()
-        ax2.semilogx(f, np.angle(Chi) / np.pi, r'r-')
+        ax2.semilogx(f, np.angle(Chi[0, 0]) / np.pi, r'r-')
         ax2.set_ylabel('Phase ($\pi$)')
 
         # NYQUIST PLOT
         ax = pl.subplot(4, 1, 4)
         pl.title('Nyquist Plot')
-        pl.plot(np.real(Chi), np.imag(Chi))
+        pl.plot(np.real(Chi[0, 0]), np.imag(Chi[0, 0]))
         pl.plot([-1], [0], r'ro')
         pl.xlim([-2.5, 2])
         pl.ylim([-1.5, 0.5])
@@ -146,17 +146,17 @@ System-algebra is supported: You can connect systems in series, in parallel (cre
 
 	>>> # Connect G in series with G:
 	... H = G * G
-	>>> # Create a 2-input, 2-output system by paralellizing G's:
+	>>> # Connect G in parallel with G:
 	... J = G + G
 	>>> # This is the same as 2 * G:
 	... G + G == 2 * G
 	True
 	>>> # Check number of inputs and outputs:
-	... (2 * G).links
-	(2, 2)
-	>>> G.links
+	... (2 * G).shape
 	(1, 1)
-	>>> H.links
+	>>> G.shape
+	(1, 1)
+	>>> H.shape
 	(1, 1)
 
 .. [feedback_systems] Karl Johan Åström and Richard M. Murray, "`Feedback Systems`_", Princeton University Press, 2012
