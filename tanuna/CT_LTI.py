@@ -30,7 +30,13 @@ class HighPass(CT_LTI_System):
 
 
 class Order2(CT_LTI_System):
-    """XXX A second-order system with XXX"""
+    """
+    A second-order system with
+
+    - w0:       Eigenfrequency
+    - zeta:     Damping coefficient (0: undamped, 1: critically damped)
+    - k:        Gain
+    """
 
     def __init__(self, w0, zeta, k):
         A = np.matrix([[0, w0], [-w0, -2*zeta*w0]])
