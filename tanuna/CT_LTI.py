@@ -6,7 +6,7 @@ Library of ready-to-use continuous-time LTI systems.
 """
 
 import numpy as np
-from tanuna import CT_LTI_System
+from .root import CT_LTI_System
 
 
 class LowPass(CT_LTI_System):
