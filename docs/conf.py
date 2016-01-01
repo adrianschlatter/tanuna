@@ -246,7 +246,7 @@ latex_elements = {
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-  (master_doc, 'tatuna.tex', u'tatuna Documentation',
+  (master_doc, 'tanuna.tex', u'tanuna Documentation',
    u'Adrian Schlatter', 'manual'),
 ]
 
@@ -276,7 +276,7 @@ latex_documents = [
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    (master_doc, 'tatuna', u'tatuna Documentation',
+    (master_doc, 'tanuna', u'tanuna Documentation',
      [author], 1)
 ]
 
@@ -290,8 +290,8 @@ man_pages = [
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-  (master_doc, 'tatuna', u'tatuna Documentation',
-   author, 'tatuna', 'One line description of project.',
+  (master_doc, 'tanuna', u'tanuna Documentation',
+   author, 'tanuna', 'One line description of project.',
    'Miscellaneous'),
 ]
 

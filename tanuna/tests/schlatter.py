@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Tests against analytical results of a simple 2nd order linear system.
+Tests against analytical results.
 
 @author: Adrian Schlatter
 """
@@ -218,6 +218,32 @@ class Test_MIMO(unittest.TestCase):
         f, freqResp = self.MIMO.freqResponse()
         shape = self.MIMO.shape + (len(f),)
         self.assertEqual(freqResp.shape, shape)
+
+
+class Test_Feedback(unittest.TestCase):
+    """Test feedback connections"""
+
+    def setUp(self):
+        self.wc = 2 * np.pi * 10.
+        self.openloop = dyn.CT_LTI_System(-self.wc, [[1, -1]],
+                                          [[0], [self.wc]], [[1, -1], [0, 0]])
+
+    def test_feedback(self):
+        """Create feed-trough system that subtracts a low-pass filtered version
+        of its output from its input"""
+
+        # connect as feedback
+        closedloop = dyn.connect(self.openloop, self.openloop, (1,), (1,))
+        # The correct result
+        A = -2 * self.wc * np.eye(1)
+        B = np.eye(1)
+        C = -self.wc * np.eye(1)
+        D = np.eye(1)
+        # The real result
+        a, b, c, d = closedloop.ABCD
+        # Test
+        self.assertTrue(almostEqual(a, A) and almostEqual(b, B) and
+                        almostEqual(c, C) and almostEqual(d, D))
 
 
 if __name__ == '__main__':

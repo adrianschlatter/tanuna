@@ -68,20 +68,20 @@ def polyDiag(polyList):
 
 
 def connect(G, H, Gout=None, Hin=None):
-    if issubclass(type(H), type(G)):
+    if issubclass(type(G), type(H)):
         try:
-            connection = H.__rconnect__(G, Gout, Hin)
+            connection = G.__connect__(H, Gout, Hin)
         except AttributeError:
             connection = NotImplemented
         if connection is NotImplemented:
-            connection = G.__connect__(H, Gout, Hin)
+            connection = H.__rconnect__(G, Gout, Hin)
     else:
         try:
-            connection = G.__connect__(H, Gout, Hin)
+            connection = H.__rconnect__(G, Gout, Hin)
         except AttributeError:
             connection = NotImplemented
         if connection is NotImplemented:
-            connection = H.__rconnect__(G, Gout, Hin)
+            connection = G.__connect__(H, Gout, Hin)
 
     return(connection)
 
@@ -336,6 +336,48 @@ class CT_LTI_System(CT_System):
             if len(Gout) != len(Hin):
                 raise ConnectionError(
                         'Number of inputs does not match number of outputs')
+            Gout = np.asarray(Gout)
+            Hin = np.asarray(Hin)
+
+            # Test if connection is feedback:
+            if G is H:
+                Nports = np.min(G.shape)
+                if len(Gout) >= Nports:
+                    # cannot connect all ports:
+                    raise ConnectionError(
+                        'at least 1 input and at least 1 output must remain unconnected')
+
+                # connect one channel at a time. Start with Gout[0] => Hin[0]
+                iout = Gout[0]
+                jin = Hin[0]
+                # Re-arange ports so that iout and jin in are the last output
+                # and the last input, respectively:
+                outorder = list(range(G.shape[0]))
+                outorder.pop(iout)
+                outorder += [iout]
+                inorder = list(range(G.shape[1]))
+                inorder.pop(jin)
+                inorder += [jin]
+                a, b, c, d = G.ABCD
+                b = b[:, inorder]
+                c = c[outorder, :]
+                d = d[:, inorder]
+                d = d[outorder, :]
+
+                # Connect feedback:
+                A = a + b[:, -1] * c[-1, :]
+                B = b[:, :-1] + b[:, -1] * d[-1, :-1]
+                C = c[:-1, :] + d[:-1, -1] * c[-1, :]
+                D = d[:-1, :-1] + d[:-1, -1] * d[-1, :-1]
+
+                if len(Gout) == 1:
+                    # work done => return result
+                    return(CT_LTI_System(A, B, C, D, G.x))
+                else:
+                    # More ports have to be connected => recurse
+                    return(self.__connect__(self, Gout[1:], Hin[1:]))
+
+            # If we get here, we have a situation without feedback.
 
             # Prepare connection matrices:
             # ===============================
