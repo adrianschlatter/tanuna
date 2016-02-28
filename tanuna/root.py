@@ -142,11 +142,20 @@ class CT_LTI_System(CT_System):
 
     def __init__(self, A, B, C, D, x0=None):
         A, B, C, D = map(np.asmatrix, (A, B, C, D))
-        self._A, self._B, self._C, self._D = A, B, C, D
+        A, B, C, D = map(lambda M: M.astype('float'), (A, B, C, D))
+        order = A.shape[1]
         if x0 is None:
-            self.x = np.matrix(np.zeros((A.shape[0], 1)))
-        else:
-            self.x = np.matrix(x0)
+            x0 = np.matrix(np.zeros((order, 1)))
+        # Verify dimensions:
+        nout, nin = D.shape
+        if not (A.shape == (order, order) and B.shape == (order, nin) and
+                C.shape == (nout, order) and D.shape == (nout, nin)):
+            raise MatrixError('State matrices do not have proper shapes')
+        if not x0.shape == (order, 1):
+            raise MatrixError('Initial state has wrong shape')
+
+        self._A, self._B, self._C, self._D = A, B, C, D
+        self.x = np.matrix(x0)
 
     @property
     def ABCD(self):
