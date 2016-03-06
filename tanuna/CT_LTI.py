@@ -33,8 +33,8 @@ class Order2(CT_LTI_System):
     """
     A second-order system with
 
-    - w0:       Eigenfrequency
-    - zeta:     Damping coefficient (0: undamped, 1: critically damped)
+    - w0:       Natural frequency
+    - zeta:     Damping ratio (0: undamped, 1: critically damped)
     - k:        Gain
     """
 

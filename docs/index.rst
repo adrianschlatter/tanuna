@@ -5,6 +5,6 @@ Index
 	:maxdepth: 2
 
 	tanuna
+	examples
 	apidoc
-
 
