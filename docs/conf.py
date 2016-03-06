@@ -25,10 +25,10 @@ on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 sys.path.insert(0, os.path.abspath('..'))
-if on_rtd:
-	MOCK_MODULES = ['numpy', 'scipy', 'scipy.linalg']
-	for mod_name in MOCK_MODULES:
-    		sys.modules[mod_name] = mock.Mock()
+# if on_rtd:
+# 	MOCK_MODULES = ['scipy', 'scipy.linalg']
+#	for mod_name in MOCK_MODULES:
+#    		sys.modules[mod_name] = mock.Mock()
 
 # -- General configuration ------------------------------------------------
 
