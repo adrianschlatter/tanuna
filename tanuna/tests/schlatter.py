@@ -12,6 +12,16 @@ import tanuna as dyn
 from tanuna.CT_LTI import LowPass, HighPass, Order2
 
 
+class MIMO(dyn.CT_LTI_System):
+    """A MIMO with n outputs and m inputs"""
+
+    def __init__(self, n, m):
+        G = dyn.connect(LowPass(1.), np.matrix(np.ones(m).reshape(1, -1)))
+        G = dyn.connect(np.matrix(np.ones(n).reshape(-1, 1)), G)
+        A, B, C, D = G.ABCD
+        super().__init__(A, B, C, D)
+
+
 class Test_MatrixTools(unittest.TestCase):
     """Test the poly1d matrix tools"""
 
@@ -233,7 +243,7 @@ class Test_Feedback(unittest.TestCase):
         of its output from its input"""
 
         # connect as feedback
-        closedloop = dyn.connect(self.openloop, self.openloop, (1,), (1,))
+        closedloop = dyn.feedback(self.openloop, (1,), (1,))
         # The correct result
         A = -2 * self.wc * np.eye(1)
         B = np.eye(1)
@@ -244,6 +254,76 @@ class Test_Feedback(unittest.TestCase):
         # Test
         self.assertTrue(almostEqual(a, A) and almostEqual(b, B) and
                         almostEqual(c, C) and almostEqual(d, D))
+
+
+class Test_Operations(unittest.TestCase):
+    """Test operations"""
+
+    def test_Mul_Illegal_GH(self):
+        for nin, nout in [(1, 2), (2, 1)]:
+            with self.subTest(nin=nin, nout=nout):
+                with self.assertRaises(dyn.ConnectionError):
+                    MIMO(1, nin) * MIMO(nout, 1)
+
+    def test_Mul_Illegal_GM(self):
+        for nin, nout in [(1, 2), (2, 1)]:
+            with self.subTest(nin=nin, nout=nout):
+                with self.assertRaises(dyn.ConnectionError):
+                    MIMO(1, nin) * np.matrix(np.ones((nout, 1)))
+            with self.subTest(nin=nin, nout=nout):
+                with self.assertRaises(dyn.ConnectionError):
+                    np.matrix(np.ones((1, nin))) * MIMO(nout, 1)
+
+    def test_Mul_GH(self):
+        G = MIMO(1, 1)
+        self.assertEqual((G * G).order, 2)
+
+    def test_Mul_GM(self):
+        G = MIMO(2, 3)
+        M = np.matrix(np.ones((3, 2)))
+        with self.subTest(G=G, M=M):
+            self.assertEqual((G * M).shape, (2, 2))
+        with self.subTest(G=G, M=M):
+            self.assertEqual((M * G).shape, (3, 3))
+
+    def test_Mul_Gk(self):
+        G1 = MIMO(1, 1) * 2.
+        G2 = MIMO(1, 1) / 0.5
+        self.assertEqual(G1.ABCD, G2.ABCD)
+
+    def test_Add_Illegal_GG(self):
+        with self.assertRaises(dyn.ConnectionError):
+            MIMO(2, 1) + MIMO(1, 2)
+
+    def test_Add_GG(self):
+        for i, j in [(1, 1), (2, 2), (1, 2)]:
+            with self.subTest(i=i, j=j):
+                G = MIMO(i, j) + MIMO(i, j)
+                self.assertEqual(G.shape, (i, j))
+
+    def test_Add_GM(self):
+        G = MIMO(2, 3)
+        M = np.matrix(np.ones((2, 3)))
+        with self.subTest(G=G, M=M):
+            self.assertEqual((G + M).shape, (2, 3))
+        with self.subTest(G=G, M=M):
+            self.assertEqual((M + G).shape, (2, 3))
+
+    def test_Add_Gk(self):
+        G = MIMO(2, 3)
+        k = 2
+        with self.subTest(G=G, k=k):
+            self.assertEqual((G + k).shape, (2, 3))
+        with self.subTest(G=G, k=2):
+            self.assertEqual((k + G).shape, (2, 3))
+
+    def test_Or_GG(self):
+        G = MIMO(2, 3)
+        self.assertEqual((G | G).order, 2 * G.order)
+
+    def test_Pow(self):
+        G = MIMO(2, 2)
+        self.assertEqual((G**2).shape, (G * G).shape)
 
 
 if __name__ == '__main__':

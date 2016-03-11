@@ -68,6 +68,8 @@ def polyDiag(polyList):
 
 
 def connect(G, H, Gout=None, Hin=None):
+    """Connect outputs Gout of G to inputs Hin of H"""
+
     if issubclass(type(G), type(H)):
         try:
             connection = G.__connect__(H, Gout, Hin)
@@ -84,6 +86,12 @@ def connect(G, H, Gout=None, Hin=None):
             connection = G.__connect__(H, Gout, Hin)
 
     return(connection)
+
+
+def feedback(G, Gout, Gin):
+    """Create feedback connection from outputs Gout to inputs Gin"""
+
+    return(G.__feedback__(Gout, Gin))
 
 
 class CT_System(object):
@@ -330,6 +338,44 @@ class CT_LTI_System(CT_System):
         poles = np.roots(a)
         return(zeros, poles, gains)
 
+    def __feedback__(self, Gout, Gin):
+        G = self
+        Nports = np.min(G.shape)
+        if len(Gout) >= Nports:
+            # cannot connect all ports:
+            raise ConnectionError(
+                'at least 1 input and at least 1 output must remain unconnected')
+
+        # connect one channel at a time. Start with Gout[0] => Hin[0]
+        iout = Gout[0]
+        jin = Gin[0]
+        # Re-arange ports so that iout and jin in are the last output
+        # and the last input, respectively:
+        outorder = list(range(G.shape[0]))
+        outorder.pop(iout)
+        outorder += [iout]
+        inorder = list(range(G.shape[1]))
+        inorder.pop(jin)
+        inorder += [jin]
+        a, b, c, d = G.ABCD
+        b = b[:, inorder]
+        c = c[outorder, :]
+        d = d[:, inorder]
+        d = d[outorder, :]
+
+        # Connect feedback:
+        A = a + b[:, -1] * c[-1, :]
+        B = b[:, :-1] + b[:, -1] * d[-1, :-1]
+        C = c[:-1, :] + d[:-1, -1] * c[-1, :]
+        D = d[:-1, :-1] + d[:-1, -1] * d[-1, :-1]
+
+        if len(Gout) == 1:
+            # work done => return result
+            return(CT_LTI_System(A, B, C, D, G.x))
+        else:
+            # More ports have to be connected => recurse
+            return(self.__connect__(self, Gout[1:], Gin[1:]))
+
     def __connect__(self, right, Gout=None, Hin=None):
         H = self
         G = right
@@ -347,46 +393,6 @@ class CT_LTI_System(CT_System):
                         'Number of inputs does not match number of outputs')
             Gout = np.asarray(Gout)
             Hin = np.asarray(Hin)
-
-            # Test if connection is feedback:
-            if G is H:
-                Nports = np.min(G.shape)
-                if len(Gout) >= Nports:
-                    # cannot connect all ports:
-                    raise ConnectionError(
-                        'at least 1 input and at least 1 output must remain unconnected')
-
-                # connect one channel at a time. Start with Gout[0] => Hin[0]
-                iout = Gout[0]
-                jin = Hin[0]
-                # Re-arange ports so that iout and jin in are the last output
-                # and the last input, respectively:
-                outorder = list(range(G.shape[0]))
-                outorder.pop(iout)
-                outorder += [iout]
-                inorder = list(range(G.shape[1]))
-                inorder.pop(jin)
-                inorder += [jin]
-                a, b, c, d = G.ABCD
-                b = b[:, inorder]
-                c = c[outorder, :]
-                d = d[:, inorder]
-                d = d[outorder, :]
-
-                # Connect feedback:
-                A = a + b[:, -1] * c[-1, :]
-                B = b[:, :-1] + b[:, -1] * d[-1, :-1]
-                C = c[:-1, :] + d[:-1, -1] * c[-1, :]
-                D = d[:-1, :-1] + d[:-1, -1] * d[-1, :-1]
-
-                if len(Gout) == 1:
-                    # work done => return result
-                    return(CT_LTI_System(A, B, C, D, G.x))
-                else:
-                    # More ports have to be connected => recurse
-                    return(self.__connect__(self, Gout[1:], Hin[1:]))
-
-            # If we get here, we have a situation without feedback.
 
             # Prepare connection matrices:
             # ===============================
@@ -428,6 +434,8 @@ class CT_LTI_System(CT_System):
             # delegate to super class:
             return(G.__rconnect__(H, Gout, Hin))
         elif issubclass(type(G), np.matrix):
+            if H.shape[1] != G.shape[0]:
+                raise ConnectionError('No. inputs and outputs do not match')
             # Multiply u by matrix before feeding into H:
             A = np.matrix(H._A)
             B = H._B * G
@@ -442,7 +450,7 @@ class CT_LTI_System(CT_System):
             D = G * H._D
             x0 = np.matrix(H.x)
         else:
-            return(NotImplementedError)
+            return(NotImplemented)
 
         return(CT_LTI_System(A, B, C, D, x0))
 
@@ -455,6 +463,8 @@ class CT_LTI_System(CT_System):
             # delegate to super class:
             return(H.__connect__(G, Gout, Hin))
         elif issubclass(type(H), np.matrix):
+            if H.shape[1] != G.shape[0]:
+                raise ConnectionError('No. inputs and outputs do not match')
             # Multiply output of G by matrix:
             A = np.matrix(G._A)
             B = np.matrix(G._B)
@@ -469,7 +479,7 @@ class CT_LTI_System(CT_System):
             D = H * G._D
             x0 = np.matrix(G.x)
         else:
-            return(NotImplementedError)
+            return(NotImplemented)
 
         return(CT_LTI_System(A, B, C, D, x0))
 
@@ -480,6 +490,8 @@ class CT_LTI_System(CT_System):
         if issubclass(type(right), CT_LTI_System):
             H = right
             nH = H.order
+            if self.shape != H.shape:
+                raise ConnectionError('System shapes must be equal')
 
             A = np.bmat([[G._A, np.zeros((nG, nH))],
                          [np.zeros((nH, nG)), H._A]])
@@ -497,8 +509,11 @@ class CT_LTI_System(CT_System):
             D = G._D + right
             x0 = G.x
             return(CT_LTI_System(A, B, C, D, x0))
+        elif type(right) in [int, float]:
+            right = np.matrix(np.ones(self.shape) * right)
+            return(self + right)
         else:
-            raise NotImplementedError
+            return(NotImplemented)
 
     def __radd__(self, left):
         return(self + left)
@@ -523,7 +538,43 @@ class CT_LTI_System(CT_System):
             invright = 1. / float(right)
             return(self * invright)
         else:
-            raise NotImplementedError
+            return(NotImplemented)
+
+    def __or__(self, right):
+        """Connect systems in parallel"""
+
+        Ag, Bg, Cg, Dg = self.ABCD
+        gout, gin = self.shape
+        ng = self.order
+        Ah, Bh, Ch, Dh = right.ABCD
+        hout, hin = right.shape
+        nh = right.order
+
+        A = np.bmat([[Ag, np.zeros([ng, ng])],
+                     [np.zeros([nh, nh]), Ah]])
+        B = np.bmat([[Bg, np.zeros([ng, gin])],
+                     [np.zeros([nh, hin]), Bh]])
+        C = np.bmat([[Cg, np.zeros([gout, ng])],
+                     [np.zeros([hout, nh]), Ch]])
+        D = np.bmat([[Dg, np.zeros([gout, gin])],
+                     [np.zeros([hout, hin]), Dh]])
+        x = np.vstack([self.x, right.x])
+        return(CT_LTI_System(A, B, C, D, x))
+
+    def __pow__(self, power):
+        """Raise system to integer power"""
+
+        if type(power) is not int:
+            return(NotImplemented)
+        if power < 1:
+            return(NotImplemented)
+
+        if power == 1:
+            return(self)
+        else:
+            return(self * self**(power - 1))
+
+
 
 
 def Thetaphi(b, a):
