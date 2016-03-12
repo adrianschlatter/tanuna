@@ -14,9 +14,9 @@ class LowPass(CT_LTI_System):
 
     def __init__(self, fC, k=1.):
         wC = 2 * np.pi * fC
-        A = np.eye(1.) * (-wC)
-        B = np.eye(1.)
-        C = np.eye(1.) * k * wC
+        A = np.eye(1) * (-wC)
+        B = np.eye(1)
+        C = np.eye(1) * k * wC
         D = np.matrix([[0.]])
         super(LowPass, self).__init__(A, B, C, D)
 

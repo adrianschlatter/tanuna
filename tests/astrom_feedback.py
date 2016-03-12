@@ -12,10 +12,14 @@ independent source (such as text books). Important references are:
 @author: Adrian Schlatter
 """
 
+import sys
+from os.path import abspath
+sys.path.insert(0, abspath('..'))
+
 import unittest
 import numpy as np
 from tools import almostEqual
-import dynamics as dyn
+import tanuna as dyn
 
 
 class Test_BalanceSystem(unittest.TestCase):
@@ -58,7 +62,3 @@ class Test_BalanceSystem(unittest.TestCase):
     def test_reachable(self):
         """Reachability"""
         self.assertTrue(self.G.reachable)
-
-
-if __name__ == '__main__':
-    unittest.main()

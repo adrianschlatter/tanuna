@@ -5,6 +5,10 @@ Tests against analytical results.
 @author: Adrian Schlatter
 """
 
+import sys
+from os.path import abspath
+sys.path.insert(0, abspath('..'))
+
 import unittest
 import numpy as np
 from tools import almostEqual
@@ -142,9 +146,9 @@ class Test_1stOrderSystem(unittest.TestCase):
         self.wH = wH = 2 * np.pi * 10
         self.kH = kH = 1.
 
-        A = np.eye(1.) * (-wH)
-        B = np.eye(1.)
-        C = np.eye(1.) * kH * wH
+        A = np.eye(1) * (-wH)
+        B = np.eye(1)
+        C = np.eye(1) * kH * wH
         D = np.matrix([[0.]])
         self.H = dyn.CT_LTI_System(A, B, C, D)
 
@@ -207,8 +211,8 @@ class Test_MIMO(unittest.TestCase):
 
     def test_connectMIMO(self):
         A = np.matrix([[-self.wc, 0], [self.wc, -self.wc]])
-        B = np.eye(2.)
-        C = self.wc * np.eye(2.)
+        B = np.eye(2)
+        C = self.wc * np.eye(2)
         D = np.zeros((2, 2))
         a, b, c, d = self.MIMO.ABCD
         self.assertTrue(almostEqual(a, A) and almostEqual(b, B) and
@@ -324,7 +328,3 @@ class Test_Operations(unittest.TestCase):
     def test_Pow(self):
         G = MIMO(2, 2)
         self.assertEqual((G**2).shape, (G * G).shape)
-
-
-if __name__ == '__main__':
-    unittest.main()
