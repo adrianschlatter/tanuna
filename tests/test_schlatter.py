@@ -229,6 +229,11 @@ class Test_MIMO(unittest.TestCase):
         shape = (len(t),) + self.MIMO.shape
         self.assertEqual(stepResp.shape, shape)
 
+    def test_tf(self):
+        b, a = self.MIMO.tf
+        self.assertTrue(b.shape == self.MIMO.shape and
+                        a.order == self.MIMO.order)
+
     def test_freqResponse(self):
         f, freqResp = self.MIMO.freqResponse()
         shape = (len(f),) + self.MIMO.shape
