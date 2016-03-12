@@ -206,31 +206,32 @@ class Test_MIMO(unittest.TestCase):
         self.wc = fc * 2 * np.pi
 
         H = dyn.connect(LowPass(fc), np.matrix([[1, 1]]))
+        H = dyn.connect(np.matrix([[1], [1]]), H)
         G = dyn.connect(np.matrix([[1], [1]]), LowPass(fc))
         self.MIMO = dyn.connect(H, G, Gout=(0,), Hin=(1,))
 
     def test_connectMIMO(self):
         A = np.matrix([[-self.wc, 0], [self.wc, -self.wc]])
         B = np.eye(2)
-        C = self.wc * np.eye(2)
-        D = np.zeros((2, 2))
+        C = self.wc * np.vstack([np.eye(2), np.matrix([[0, 1]])])
+        D = np.zeros((3, 2))
         a, b, c, d = self.MIMO.ABCD
         self.assertTrue(almostEqual(a, A) and almostEqual(b, B) and
                         almostEqual(c, C) and almostEqual(d, D))
 
     def test_impulseResponse(self):
         t, impResp = self.MIMO.impulseResponse()
-        shape = self.MIMO.shape + (len(t),)
+        shape = (len(t),) + self.MIMO.shape
         self.assertEqual(impResp.shape, shape)
 
     def test_stepResponse(self):
         t, stepResp = self.MIMO.stepResponse()
-        shape = self.MIMO.shape + (len(t),)
+        shape = (len(t),) + self.MIMO.shape
         self.assertEqual(stepResp.shape, shape)
 
     def test_freqResponse(self):
         f, freqResp = self.MIMO.freqResponse()
-        shape = self.MIMO.shape + (len(f),)
+        shape = (len(f),) + self.MIMO.shape
         self.assertEqual(freqResp.shape, shape)
 
 

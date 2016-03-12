@@ -67,23 +67,27 @@ def polyDiag(polyList):
     return(A)
 
 
-def connect(G, H, Gout=None, Hin=None):
-    """Connect outputs Gout of G to inputs Hin of H"""
+def connect(H, G, Gout=None, Hin=None):
+    """
+    Connect outputs Gout of G to inputs Hin of H. The outputs and inputs of
+    the connected system are arranged as follows:
 
-    if issubclass(type(G), type(H)):
+        - remaining outputs of G get lower, the outputs of H the higher indices
+        - inputs of G get the lower, remaining inputs of H the higher indices
+
+    connect(H, G) is equivalent to H * G.
+    """
+
+    if issubclass(type(H), type(G)):
         try:
-            connection = G.__connect__(H, Gout, Hin)
+            connection = H.__connect__(G, Gout, Hin)
         except AttributeError:
-            connection = NotImplemented
-        if connection is NotImplemented:
-            connection = H.__rconnect__(G, Gout, Hin)
+            connection = G.__rconnect__(H, Gout, Hin)
     else:
         try:
-            connection = H.__rconnect__(G, Gout, Hin)
+            connection = G.__rconnect__(H, Gout, Hin)
         except AttributeError:
-            connection = NotImplemented
-        if connection is NotImplemented:
-            connection = G.__connect__(H, Gout, Hin)
+            connection = H.__connect__(G, Gout, Hin)
 
     return(connection)
 
@@ -243,7 +247,7 @@ class CT_LTI_System(CT_System):
         A, B, C, D = self.ABCD
         steady = D - C * A.I * B
         y = [C * A.I * expm(A * ti) * B + steady for ti in t]
-        return((t, np.array(y).reshape(-1, self.shape[0])))
+        return((t, np.array(y).reshape((-1,) + self.shape)))
 
     def impulseResponse(self, t=None):
         """
@@ -261,7 +265,7 @@ class CT_LTI_System(CT_System):
 
         A, B, C = self._A, self._B, self._C
         y = [C * expm(A * ti) * B for ti in t]
-        return((t, np.array(y).reshape(-1, self.shape[0])))
+        return((t, np.array(y).reshape((-1,) + self.shape)))
 
     def freqResponse(self, f=None):
         """
@@ -286,10 +290,10 @@ class CT_LTI_System(CT_System):
 
         b, a = self.tf
         s = 2 * np.pi * 1j * f
-        resp = np.zeros(b.shape + (len(f),), dtype=complex)
+        resp = np.zeros((len(f),) + b.shape, dtype=complex)
         for i in range(b.shape[0]):
             for j in range(b.shape[1]):
-                resp[i, j] = b[i, j](s) / a(s)
+                resp[:, i, j] = b[i, j](s) / a(s)
 
         return(f, resp)
 
