@@ -15,4 +15,5 @@ setup(name='tanuna',
       packages=['tanuna'],
       install_requires=['numpy', 'scipy'],
       include_package_data=True,
+      test_suite='tests',
       zip_safe=False)

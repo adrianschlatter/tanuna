@@ -5,13 +5,9 @@ Tests against analytical results.
 @author: Adrian Schlatter
 """
 
-import sys
-from os.path import abspath
-sys.path.insert(0, abspath('..'))
-
 import unittest
 import numpy as np
-from tools import almostEqual
+from .tools import almostEqual
 import tanuna as dyn
 from tanuna.CT_LTI import LowPass, HighPass, Order2
 

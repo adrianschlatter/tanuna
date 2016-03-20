@@ -12,13 +12,9 @@ independent source (such as text books). Important references are:
 @author: Adrian Schlatter
 """
 
-import sys
-from os.path import abspath
-sys.path.insert(0, abspath('..'))
-
 import unittest
 import numpy as np
-from tools import almostEqual
+from .tools import almostEqual
 import tanuna as dyn
 
 
