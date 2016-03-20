@@ -60,5 +60,5 @@ K = np.matrix([[0, k1, k2]])
 L = np.vstack([stateoutput, K])
 summing = np.matrix([kr, -1])
 stabilized = L * system * summing
-stabilized = dyn.connect(stabilized, stabilized, Gout=(1,), Hin=(1,))
+stabilized = dyn.feedback(stabilized, Gout=(1,), Gin=(1,))
 # Code Snippet 2 - End %%%%%
