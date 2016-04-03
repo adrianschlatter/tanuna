@@ -67,6 +67,7 @@ Furthermore, it calculates step- and impulse-responses, Bode- and Nyquist-plots:
 
 .. plot:: pyplots/diving_in/diving_in_plot.py
 	:include-source: True
+	:width: 50%
 
 The duration of the trace and the density of samples is automatically determined
 for you based on the Eigenvalues of the system (but you can provide your own if
