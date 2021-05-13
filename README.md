@@ -10,7 +10,9 @@ intended to include:
 - System characterization (such as impulse- and frequency response)
 - Controller design
 
-Currently, the focus is on continuous-time LTI systems.
+Currently, the focus is on continuous-time LTI systems. Please find
+documentation including interesting examples on
+[readthedocs](https://tanuna.readthedocs.io).
 
 Furthermore - and maybe foremost - this project serves the author to learn
 and try:
