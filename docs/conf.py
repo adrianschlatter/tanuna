@@ -14,7 +14,7 @@
 
 import sys
 import os
-import mock
+from unittest import mock
 # import shlex
 
 # on_rtd is whether we are on readthedocs.org, this line of code grabbed
@@ -73,9 +73,9 @@ author = u'Adrian Schlatter'
 # built documents.
 #
 # The short X.Y version.
-version = '0'
+version = '0.1'
 # The full version, including alpha/beta/rc tags.
-release = '0'
+release = '0.1'
 
 # ToDo Settings
 todo_include_todos = False
@@ -231,25 +231,25 @@ htmlhelp_basename = 'tanunadoc'
 # -- Options for LaTeX output ---------------------------------------------
 
 latex_elements = {
-# The paper size ('letterpaper' or 'a4paper').
-#'papersize': 'letterpaper',
+    # The paper size ('letterpaper' or 'a4paper').
+    # 'papersize': 'letterpaper',
 
-# The font size ('10pt', '11pt' or '12pt').
-#'pointsize': '10pt',
+    # The font size ('10pt', '11pt' or '12pt').
+    # 'pointsize': '10pt',
 
-# Additional stuff for the LaTeX preamble.
-#'preamble': '',
+    # Additional stuff for the LaTeX preamble.
+    # 'preamble': '',
 
-# Latex figure (float) alignment
-#'figure_align': 'htbp',
+    # Latex figure (float) alignment
+    # 'figure_align': 'htbp',
 }
 
 # Grouping the document tree into LaTeX files. List of tuples
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-  (master_doc, 'tanuna.tex', u'tanuna Documentation',
-   u'Adrian Schlatter', 'manual'),
+    (master_doc, 'tanuna.tex', u'tanuna Documentation',
+     u'Adrian Schlatter', 'manual'),
 ]
 
 # The name of an image file (relative to this directory) to place at the top of
@@ -292,9 +292,9 @@ man_pages = [
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-  (master_doc, 'tanuna', u'tanuna Documentation',
-   author, 'tanuna', 'One line description of project.',
-   'Miscellaneous'),
+    (master_doc, 'tanuna', u'tanuna Documentation',
+     author, 'tanuna', 'One line description of project.',
+     'Miscellaneous'),
 ]
 
 # Documents to append as an appendix to all manuals.
