@@ -5,6 +5,10 @@ Model of a passively mode-locked laser.
 @author: Adrian Schlatter
 """
 
+# ignore warning 'line break after binary operator'
+# as line break *before* binary operator *also* creates a warning ...
+# flake8: noqa: W504
+
 import numpy as np
 from scipy.optimize import brentq
 from scipy.integrate import ode
@@ -123,7 +127,7 @@ class Laser(ode):
             lowerBound = -offs + Ppump * etaP / (loss + DR)
 
             Psteady = brentq(lambda P: -P - EsatL / tauL + etaP * Ppump /
-                             (loss + self.qP(P*TR)), lowerBound, upperBound)
+                             (loss + self.qP(P * TR)), lowerBound, upperBound)
             gsteady = loss + self.qP(Psteady * TR)
 
         return(Psteady, gsteady)
@@ -203,12 +207,12 @@ class NdYVO4Laser(Laser):
     def __init__(self, Ppump):
         tauL = 90e-6
         TR = 10e-9
-        FsatA = 60e-6/1e-4
+        FsatA = 60e-6 / 1e-4
         wA = 140e-6
         DR = 1.7e-2
-        loss = 9e-2+1.3e-2
+        loss = 9e-2 + 1.3e-2
         wavelength = 1064e-9
-        sigmaEm = 114e-20*1e-4
+        sigmaEm = 114e-20 * 1e-4
         wL = 62e-6
         etaP = 808. / 1064.
         Toc = 8.7e-2
@@ -216,7 +220,7 @@ class NdYVO4Laser(Laser):
         h = 6.626e-34
         nuL = c / wavelength
         EsatL = np.pi * wL**2 * h * nuL / (2 * sigmaEm)
-        EsatA = FsatA*np.pi*wA**2
+        EsatA = FsatA * np.pi * wA**2
 
         Laser.__init__(self, loss, TR, tauL, etaP, EsatL, DR, EsatA, Toc,
                        Ppump, P0=None, g0=None)

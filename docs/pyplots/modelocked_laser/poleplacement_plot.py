@@ -29,7 +29,7 @@ pl.axhline(y=targetGain, color='k', ls='--', label='target gain')
 pl.xlim([t[0] / 1e-6, t[-1] / 1e-6])
 pl.ylim([0, 2])
 pl.xlabel('Time After Step (us)')
-pl.ylabel('$\delta P_{out}$ (W)')
+pl.ylabel(r'$\delta P_{out}$ (W)')
 pl.legend(loc=1)
 
 # POLE PLOT
@@ -41,7 +41,7 @@ pl.plot(np.real(stabilized.poles) / 1e3, np.imag(stabilized.poles) / 1e3,
         r'go', label='controlled')
 pl.axhline(y=0, color='k')
 pl.axvline(x=0, color='k')
-pl.ylabel('$\omega$ (krad / s)')
+pl.ylabel(r'$\omega$ (krad / s)')
 pl.xlabel('Gain (1 / ms)')
 pl.xlim([-300, 200])
 pl.ylim([-3e3, 3e3])

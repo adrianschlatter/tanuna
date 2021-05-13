@@ -11,6 +11,8 @@ from .tools import almostEqual
 import tanuna as dyn
 from tanuna.CT_LTI import LowPass, HighPass, Order2
 
+# flake8: noqa: E741
+
 
 class MIMO(dyn.CT_LTI_System):
     """A MIMO with n outputs and m inputs"""

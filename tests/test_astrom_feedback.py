@@ -17,6 +17,7 @@ import numpy as np
 from .tools import almostEqual
 import tanuna as dyn
 
+# flake8: noqa: E741
 
 class Test_BalanceSystem(unittest.TestCase):
     """Testing Example 6.2 in [astrom_feedback]_"""

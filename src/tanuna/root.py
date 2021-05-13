@@ -5,6 +5,10 @@ Root module of tanuna package.
 @author: Adrian Schlatter
 """
 
+# ignore warning 'line break after binary operator'
+# as line break *before* binary operator *also* creates a warning ...
+# flake8: noqa: W504
+
 import numpy as np
 from scipy.linalg import expm
 
@@ -160,8 +164,8 @@ class CT_LTI_System(CT_System):
             x0 = np.matrix(np.zeros((order, 1)))
         # Verify dimensions:
         nout, nin = D.shape
-        if not (A.shape == (order, order) and B.shape == (order, nin) and
-                C.shape == (nout, order) and D.shape == (nout, nin)):
+        if not (A.shape == (order, order) and B.shape == (order, nin)
+                and C.shape == (nout, order) and D.shape == (nout, nin)):
             raise MatrixError('State matrices do not have proper shapes')
         if not x0.shape == (order, 1):
             raise MatrixError('Initial state has wrong shape')
@@ -347,8 +351,8 @@ class CT_LTI_System(CT_System):
         Nports = np.min(G.shape)
         if len(Gout) >= Nports:
             # cannot connect all ports:
-            raise ConnectionError(
-                'at least 1 input and at least 1 output must remain unconnected')
+            raise ConnectionError('at least 1 input and at least 1 output '
+                                  'must remain unconnected')
 
         # connect one channel at a time. Start with Gout[0] => Hin[0]
         iout = Gout[0]
@@ -393,8 +397,8 @@ class CT_LTI_System(CT_System):
                 # connect all inputs
                 Hin = np.arange(H.shape[1])
             if len(Gout) != len(Hin):
-                raise ConnectionError(
-                        'Number of inputs does not match number of outputs')
+                raise ConnectionError('Number of inputs does not match '
+                                      'number of outputs')
             Gout = np.asarray(Gout)
             Hin = np.asarray(Hin)
 
@@ -579,8 +583,6 @@ class CT_LTI_System(CT_System):
             return(self * self**(power - 1))
 
 
-
-
 def Thetaphi(b, a):
     """Translate filter-coefficient arrays b and a to Theta, phi
     representation:
@@ -621,7 +623,7 @@ def differenceEquation(b, a):
     s = s[:-1] + ')*y_t = ('
     for i in range(len(Theta)):
         s += '%.2f B^%d+' % (Theta[i], i)
-    s = s[:-1]+')*x_t'
+    s = s[:-1] + ')*x_t'
     return s
 
 
@@ -746,7 +748,7 @@ if __name__ == '__main__':
     import matplotlib.pyplot as pl
     pl.close('all')
 
-    from CT_LTI import LowPass, HighPass
+    from tanuna.CT_LTI import LowPass, HighPass
     J = connect(LowPass(10.), LowPass(10.), Gout=(), Hin=())
     J = np.matrix([[1, 1]]) * J * np.matrix([[1], [1]])
 
@@ -788,7 +790,7 @@ if __name__ == '__main__':
     ax1.set_ylabel('Magnitude (dB)')
     ax2 = ax1.twinx()
     ax2.semilogx(f, np.angle(Chi) / np.pi, r'r-')
-    ax2.set_ylabel('Phase ($\pi$)')
+    ax2.set_ylabel(r'Phase ($\pi$)')
 
     # NYQUIST PLOT
     ax = pl.subplot(4, 1, 4)

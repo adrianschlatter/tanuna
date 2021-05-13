@@ -11,6 +11,8 @@ tanuna provides tools to work with dynamic systems. This includes
 @author: Adrian Schlatter
 """
 
+# flake8: noqa
+
 from .root import *
 from . import CT_LTI
 from . import examples

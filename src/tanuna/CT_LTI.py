@@ -39,8 +39,8 @@ class Order2(CT_LTI_System):
     """
 
     def __init__(self, w0, zeta, k):
-        A = np.matrix([[0, w0], [-w0, -2*zeta*w0]])
-        B = np.matrix([0, k*w0]).T
+        A = np.matrix([[0, w0], [-w0, -2 * zeta * w0]])
+        B = np.matrix([0, k * w0]).T
         C = np.matrix([1., 0.])
         D = np.matrix([0.])
 
