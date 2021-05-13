@@ -1,11 +1,11 @@
 tanuna
 ++++++
 
-tanuna provides tools to work with dynamic systems. This includes
+tanuna provides tools to work with dynamic systems. This currently includes
 
-* continuous- and discrete-time systems
-* linear and non-linear systems
-* time-independent and time-varying systems
+* continuous- but not discrete-time systems
+* linear systems
+* time-independent systems
 * Single-Input Single-Output (SISO) and Multiple-Input Multiple-Output (MISO)
   systems
 
