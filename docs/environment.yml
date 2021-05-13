@@ -8,5 +8,5 @@ dependencies:
     - sphinx=4.0.1
     - pip=21.0.1
     - pip:
-        - sphinx_rtd_theme=0.5.2
-        - tanuna=0.1
+        - sphinx_rtd_theme==0.5.2
+        - tanuna==0.1
