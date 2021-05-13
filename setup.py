@@ -1,19 +1,12 @@
 # -*- coding: utf-8 -*-
 """
-@author: Adrian Schlatter
+A setuptools based setup module.
+
+See:
+https://packaging.python.org/en/latest/distributing.html
+https://github.com/pypa/sampleproject
 """
 
-from setuptools import setup
+import setuptools
 
-setup(name='tanuna',
-      version='0.0',
-      description='Python tools to work with dynamic systems',
-      url='https://github.com/adrianschlatter/tanuna',
-      author='Adrian Schlatter',
-      author_email='schlatter@phys.ethz.ch',
-      license='Revised BSD',
-      packages=['tanuna'],
-      install_requires=['numpy', 'scipy'],
-      include_package_data=True,
-      test_suite='tests',
-      zip_safe=False)
+setuptools.setup()
