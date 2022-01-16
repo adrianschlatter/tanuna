@@ -9,8 +9,16 @@ Root module of tanuna package.
 # as line break *before* binary operator *also* creates a warning ...
 # flake8: noqa: W504
 
+# XXX refactor to use numpy arrays with "@" multiplication instead of matrices
+# XXX have to decide whether lists of vectors have axes in "matrix-order"
+#     (useful for matrix multiplication) or in "plot-order" (useful for
+#     plotting)
+# XXX refactor to consistantly use either "x" or "s" as variable name for state
+#     (consider that s is usually also used for omega * j + r)
+
 import numpy as np
 from scipy.linalg import expm
+from scipy.integrate import solve_ivp
 
 
 class ApproximationError(Exception):
@@ -24,6 +32,8 @@ class MatrixError(Exception):
 class ConnectionError(Exception):
     pass
 
+class SolverError(Exception):
+    pass
 
 def minor(A, i, j):
     """Returns matrix obtained by deleting row i and column j from matrix A."""
@@ -114,16 +124,37 @@ class CT_System(object):
         f(t, s, u): Dynamics of the system (ds/dt = f(t, s, u))
         g(t, s, u): Function that maps state s to output y = g(t, s, u)
 
-    It is solved by simply calling it with an argument t. t is either a float
-    or array-like. In the latter case, the system is solved for all the times
-    t in the array.
+    It is solved by simply calling it with arguments t and u. t is
+    either a float or array-like. In the latter case, the system is
+    solved for all the times t in the array. u is a function with call
+    signature u(t) returning an external input (vector).
     """
 
     def __init__(self, f, g, s0):
-        pass
+        self.f = f
+        self.g = g
+        self.s = s0
 
-    def __call__(self, t):
-        pass
+    def __call__(self, t, u):
+        if type(t) in [float, int]:
+            t = np.array([float(t)])
+
+        s0 = np.array(self.s).reshape(-1)
+        if t[-1] == 0:
+            s = self.s.repeat(len(t), axis=1)
+        else:
+            sol = solve_ivp(self.f, (0., t[-1]), s0, method='DOP853',
+                            t_eval=t, dense_output=False, vectorized=True,
+                            args=(u,))
+
+            if not sol.success:
+                raise SolverError()
+
+            s = sol.y
+            
+        y = self.g(t, s, u)
+        
+        return y
 
     def steadyStates(self, u0, t):
         """Returns a list of tuples (s_i, stability_i) with:
@@ -172,6 +203,13 @@ class CT_LTI_System(CT_System):
 
         self._A, self._B, self._C, self._D = A, B, C, D
         self.x = np.matrix(x0)
+        self.s = self.x     # XXX refactor to use same state variable in CT_LTI and CT
+
+    def f(self, t, s, u):
+        return self._A * s + self._B * u(t)
+
+    def g(self, t, s, u):
+        return self._C * s + self._D * u(t)
 
     @property
     def ABCD(self):
