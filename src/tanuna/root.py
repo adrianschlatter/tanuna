@@ -19,6 +19,7 @@ Root module of tanuna package.
 import numpy as np
 from scipy.linalg import expm
 from scipy.integrate import solve_ivp
+import functools
 
 
 class ApproximationError(Exception):
@@ -32,8 +33,10 @@ class MatrixError(Exception):
 class ConnectionError(Exception):
     pass
 
+
 class SolverError(Exception):
     pass
+
 
 def minor(A, i, j):
     """Returns matrix obtained by deleting row i and column j from matrix A."""
@@ -81,6 +84,30 @@ def polyDiag(polyList):
     return(A)
 
 
+def _normalizePartialConnections(H, G, Gout, Hin):
+    try:
+        Gshape = G.shape
+    except AttributeError as e:
+        if issubclass(type(G), (float, int)):
+            Gshape = (H.shape[1], H.shape[1])
+        else:
+            raise e
+    try:
+        Hshape = H.shape
+    except AttributeError as e:
+        if issubclass(type(H), (float, int)):
+            Hshape = (G.shape[0], G.shape[0])
+        else:
+            raise e
+
+    if Gout is None:
+        Gout = tuple(range(Gshape[0]))
+    if Hin is None:
+        Hin = tuple(range(Hshape[1]))
+
+    return Gout, Hin
+
+
 def connect(H, G, Gout=None, Hin=None):
     """
     Connect outputs Gout of G to inputs Hin of H. The outputs and inputs of
@@ -91,25 +118,113 @@ def connect(H, G, Gout=None, Hin=None):
 
     connect(H, G) is equivalent to H * G.
     """
-
-    if issubclass(type(H), type(G)):
-        try:
-            connection = H.__connect__(G, Gout, Hin)
-        except AttributeError:
-            connection = G.__rconnect__(H, Gout, Hin)
-    else:
-        try:
-            connection = G.__rconnect__(H, Gout, Hin)
-        except AttributeError:
-            connection = H.__connect__(G, Gout, Hin)
-
-    return(connection)
+    
+    Gout, Hin = _normalizePartialConnections(H, G, Gout, Hin)
+    
+    try:
+        return H.__connect__(G, Gout=Gout, Hin=Hin)
+    except (AttributeError, NotImplementedError):
+        return G.__rconnect__(H, Gout=Gout, Hin=Hin)
 
 
 def feedback(G, Gout, Gin):
     """Create feedback connection from outputs Gout to inputs Gin"""
 
     return(G.__feedback__(Gout, Gin))
+
+
+class Function(object):
+    """
+    Function that supports function arithmetics.
+
+    Let f, g Functions, and M a matrix, then 
+    
+        (f*g)(t, x, u) = f(t, x, g(t, x, u))
+        (f+g)(t, x, u) = f(t, x, u) + g(t, x, u)
+        (M*f)(t, x, u) = M*f(t, x, u)
+        (f*M)(t, x, u) = f(t, x, M*u)
+    """
+
+    def __init__(self, func):
+        self.func = func
+
+    def __call__(self, t, x, u):
+        return self.func(t, x, u)
+
+    def __mul__(self, right):
+        f = self.func
+
+        if issubclass(type(right), Function):
+            g = right.func
+
+            def fg(t, x, u):
+                return f(t, x, g(t, x, u))
+
+            return Function(fg)
+
+        if issubclass(type(right), (np.matrix, float, int)):
+            g = right
+
+            def fg(t, x, u):
+                return f(t, x, g*u)
+
+            return Function(fg)
+
+        return NotImplementedError
+
+    def __rmul__(self, left):
+        if issubclass(type(left), (float, int)):
+            return self.__mul__(left)
+        
+        if issubclass(type(left), np.matrix):
+            M = left
+            g = self.func
+
+            def fg(t, x, u):
+                return M * g(t, x, u)
+
+            return Function(fg)
+
+        return NotImplementedError
+
+    def __add__(self, right):
+        f = self.func
+
+        if issubclass(type(right), Function):
+            g = right.func
+            def fg(t, x, u):
+                return f(t, x, u) + g(t, x, u)
+
+            return Function(fg)
+
+        if issubclass(type(right), (np.matrix, float, int)):
+            g = right
+
+            def fg(t, x, u):
+                return f(t, x, u) + g
+
+            return Function(fg)
+        
+        return NotImplementedError
+
+    def __radd__(self, left):
+        return self.__add__(left)
+
+    def __getitem__(self, slc):
+        return Function(lambda t, x, u: self.func(t, x, u)[slc])
+
+    def reorder_xputs(self, outs, ins):
+        # find inverse permutation of ins:
+        pairs = zip(ins, range(len(ins)))
+        pairs_sorted = sorted(pairs, key=lambda p: p[0])
+        ins_inv = list(zip(*pairs_sorted))[1]
+        
+        def f_reordered(t, x, u):
+            u_new = u.take(ins_inv, axis=0)
+            y_new = self.func(t, x, u_new).take(outs, axis=0)
+            return y_new
+
+        return Function(f_reordered)
 
 
 class CT_System(object):
@@ -124,18 +239,32 @@ class CT_System(object):
         f(t, s, u): Dynamics of the system (ds/dt = f(t, s, u))
         g(t, s, u): Function that maps state s to output y = g(t, s, u)
 
+        order:      Order of the system (dimension of vector f(t, s, u))
+        shape:      = (n_outputs, n_inputs) determines the dimensions of
+                    y and u.
+
     It is solved by simply calling it with arguments t and u. t is
     either a float or array-like. In the latter case, the system is
     solved for all the times t in the array. u is a function with call
     signature u(t) returning an external input (vector).
     """
 
-    def __init__(self, f, g, s0):
-        self.f = f
-        self.g = g
+    def __init__(self, f, g, order, shape, s0=None):
+        self.f = Function(f)
+        self.g = Function(g)
+        self.order = order
+        self.shape = shape
+        if s0 is None:
+            s0 = np.matrix(np.zeros((order, 1)))
+        else:
+            s0 = np.matrix(s0).reshape(-1, 1)
         self.s = s0
 
-    def __call__(self, t, u):
+    def __call__(self, t, return_state=False, method='RK45'):
+        if self.shape[1] != 0:
+            raise ConnectionError(
+                    'Not all inputs connected to sources: Can\'t solve!')
+        
         if type(t) in [float, int]:
             t = np.array([float(t)])
 
@@ -143,18 +272,21 @@ class CT_System(object):
         if t[-1] == 0:
             s = self.s.repeat(len(t), axis=1)
         else:
-            sol = solve_ivp(self.f, (0., t[-1]), s0, method='DOP853',
+            sol = solve_ivp(self.f, (0., t[-1]), s0, method=method,
                             t_eval=t, dense_output=False, vectorized=True,
-                            args=(u,))
+                            args=(np.matrix([[]]).reshape(0, 1),))
 
             if not sol.success:
                 raise SolverError()
 
             s = sol.y
             
-        y = self.g(t, s, u)
-        
-        return y
+        y = self.g(t, s, np.matrix([[]]).reshape(0, len(t)))
+
+        if not return_state:
+            return y
+        else:
+            return (y, np.matrix(s))
 
     def steadyStates(self, u0, t):
         """Returns a list of tuples (s_i, stability_i) with:
@@ -174,7 +306,7 @@ class CT_System(object):
         are reachable by providing an appropriate input u(t))."""
         raise NotImplementedError
 
-    def tangentLTI(self, s0, u0, t):
+    def tangentLTI(self, t, s0, u0):
         """
         Approximates the CT_System at time t near state s0 and input u0
         by an LTISystem (linear, time-invariant system).
@@ -182,6 +314,293 @@ class CT_System(object):
         """
 
         raise NotImplementedError
+
+    @staticmethod
+    def Sh(H, G, Hin, Gout):
+            # u_h = Sh * y_g:
+            Sh = np.matrix(np.zeros((H.shape[1], G.shape[0])))
+            for k in range(len(Hin)):
+                i = Hin[k]
+                j = Gout[k]
+                Sh[i, j] = 1.
+
+            return Sh
+
+    @staticmethod
+    def Shbar(H, G, Hin, Gout):
+            # u_h = S_h_bar * u_h,unconnected:
+            sh = np.matrix(np.zeros((H.shape[1], H.shape[1] - len(Hin))))
+            u_h_unconnected = list(set(range(H.shape[1])) - set(Hin))
+            sh[u_h_unconnected, :] = np.eye(H.shape[1] - len(Hin))
+
+            return sh
+
+    @staticmethod
+    def Sgbar(G, Gout):
+            # y_g,unconnected = S_g_bar * y_g:
+            sg = np.matrix(np.zeros((G.shape[0] - len(Gout), G.shape[0])))
+            y_g_unconnected = list(set(range(G.shape[0])) - set(Gout))
+            sg[:, y_g_unconnected] = np.eye(G.shape[0] - len(Gout))
+
+            return sg
+
+    def __feedback__(self, Gout, Gin):
+        Nports = np.min(self.shape)
+        if len(Gout) >= Nports:
+            # cannot connect _all_ ports:
+            raise ConnectionError('at least 1 input and at least 1 output '
+                                  'must remain unconnected')
+        if len(Gout) != len(Gin):
+            raise ConnectionError(
+                "No. outputs to connect must match no. inputs to connect")
+
+        # Re-arange ports so that feedback outputs and inputs come last:
+        out_all = set(range(self.shape[0]))
+        in_all = set(range(self.shape[1]))
+        outs = tuple(out_all - set(Gout)) + Gout
+        ins = tuple(in_all - set(Gin)) + Gin
+
+        f_ord = self.f.reorder_xputs(range(self.shape[0]), ins)
+        g_ord = self.g.reorder_xputs(outs, ins)
+
+        g_ord_open = g_ord[:-len(Gout)]
+        g_ord_clsd = g_ord[-len(Gout):]
+
+        # Connect feedback:
+        def f_fb(t, x, u_open):
+            u = np.vstack(
+                    [u_open,
+                     g_ord_clsd(t, x,
+                                np.vstack(
+                                    [u_open,
+                                     np.zeros((len(Gout), u_open.shape[1]))])
+                                )
+                    ]
+                )
+            return f_ord(t, x, u)
+
+        def g_fb(t, x, u_open):
+            u = np.vstack(
+                    [u_open,
+                     g_ord_clsd(t, x,
+                                np.vstack(
+                                    [u_open,
+                                     np.zeros((len(Gout), u_open.shape[1]))])
+                                )
+                    ]
+                )
+            return g_ord_open(t, x, u)
+
+        shape = (self.shape[0] - len(Gout), self.shape[1] - len(Gout))
+
+        return CT_System(f_fb, g_fb, self.order, shape, self.s)
+
+
+    def __connect__(self, right, Gout=None, Hin=None):
+        H = self
+        G = right
+
+        Gout, Hin = _normalizePartialConnections(self, right, Gout, Hin)
+    
+        if issubclass(type(right), CT_System):
+            if len(Gout) != len(Hin):
+                raise ConnectionError('Number of inputs does not match '
+                                      'number of outputs')
+
+            def f_hg(t, x_hg, u_hg):
+                x_g = x_hg[:G.order, :]     # <= this creates ref to G! XXX
+                x_h = x_hg[G.order:, :]
+                u_g = u_hg[:G.shape[0], :]
+                u_hopen = u_hg[G.shape[0]:, :]
+
+                S_h_bar = self.Shbar(H, G, Hin, Gout)
+                S_h = self.Sh(H, G, Hin, Gout)
+
+                x_hg_dot = np.vstack([
+                            G.f(t, x_g, u_g),
+                            H.f(t, x_h,
+                                S_h_bar * u_hopen + S_h * G.g(t, x_g, u_g))])
+                
+                return x_hg_dot
+
+            def g_hg(t, x_hg, u_hg):
+                x_g = x_hg[:G.order, :]
+                x_h = x_hg[G.order:, :]
+                u_g = u_hg[:G.shape[0], :]
+                u_hopen = u_hg[G.shape[0]:, :]
+
+                S_g_bar = self.Sgbar(G, Gout)
+                S_h_bar = self.Shbar(H, G, Hin, Gout)
+                S_h = self.Sh(H, G, Hin, Gout)
+                y_hg = np.vstack([
+                        S_g_bar * G.g(t, x_g, u_g),
+                        H.g(t, x_h, S_h_bar * u_hopen + S_h * G.g(t, x_g, u_g))])
+
+                return y_hg
+
+            s0 = np.vstack([G.s, H.s])
+            order = s0.shape[0]
+            n_outputs = self.Sgbar(G, Gout).shape[0] + H.shape[0]
+            n_inputs = G.shape[1] + H.shape[1] - len(Hin)
+            shape = (n_outputs, n_inputs)
+            return CT_System(f_hg, g_hg, order, shape, s0=s0)
+
+        if issubclass(type(right), np.matrix):
+            if self.shape[1] != right.shape[0]:
+                raise ConnectionError('Number of inputs does not match '
+                                      'number of outputs')
+
+        if issubclass(type(right), (np.matrix, float, int)):
+            f_hg = self.f * right
+            g_hg = self.g * right
+            order = self.order
+            s0 = self.s
+            if issubclass(type(right), np.matrix):
+                shape = (self.shape[0], right.shape[1])
+            else:
+                shape = self.shape
+
+            return CT_System(f_hg, g_hg, order, shape, s0=s0)
+
+        raise NotImplementedError(
+                    f"Don't know how to connect {self} and {right}")
+
+    def __rconnect__(self, left, Gout=None, Hin=None):
+        Gout, Hin = _normalizePartialConnections(left, self, Gout, Hin)
+    
+        if issubclass(type(left), type(self)):
+            return type(self).__connect__(left, self, Gout=Gout, Hin=Hin)
+
+        if left.shape[1] != self.shape[0]:
+            raise ConnectionError('Number of inputs does not match '
+                                    'number of outputs')
+
+        if issubclass(type(left), (np.matrix, float, int)):
+            if len(Gout) != self.shape[0] or len(Hin) != left.shape[1]:
+                raise ConnectionError(
+                    "Partial connections with matrix, float, int not supported")
+            f_hg = self.f
+            g_hg = left * self.g
+            shape = (left.shape[0], self.shape[1])
+            return CT_System(f_hg, g_hg, self.order, shape, s0=self.s)
+
+        raise NotImplementedError
+
+    def __mul__(self, right):
+        return(self.__connect__(right))
+
+    def __rmul__(self, left):
+        return(self.__rconnect__(left))
+
+    def __add__(self, right):
+        if issubclass(type(right), type(self)):
+            if self.shape != right.shape:
+                raise ConnectionError('Systems must have same shape')
+            
+            def f_hg(t, x, u):
+                return np.vstack([self.f(t, x, u),
+                                  right.f(t, x, u)])
+            g_hg = self.g + right.g
+            order = self.order + right.order
+            s0 = np.vstack([self.s, right.s])
+            return CT_System(f_hg, g_hg, order, self.shape, s0=s0)
+
+        if issubclass(type(right), (np.matrix, float, int)):
+            f_hg = self.f + right
+            g_hg = self.g + right
+            return CT_System(f_hg, g_hg, self.order, self.shape)
+
+        raise NotImplementedError
+
+    def __radd__(self, left):
+        if issubclass(type(self), type(left)):
+            return(self + left)
+        if issubclass(type(left), (np.matrix, float, int)):
+            g_hg = left + self.g
+            return CT_System(self.f, g_hg, self.order, self.shape, s0=self.s)
+
+        raise NotImplementedError
+
+    def __sub__(self, right):
+        return(self + -right)
+
+    def __rsub__(self, left):
+        return(left + -self)
+
+    def __neg__(self):
+        return(self * (-1))
+
+    def __truediv__(self, right):
+        if type(right) in [float, int]:
+            invright = 1. / float(right)
+            return(self * invright)
+
+        raise NotImplementedError
+
+    def __or__(self, right):
+        """Connect systems in parallel"""
+        if not issubclass(type(self), type(right)):
+            raise NotImplementedError
+        
+        def f_hg(t, x, u):
+            u_self = u[:self.shape[0]]
+            u_right = u[self.shape[0]:]
+            x_self = x[:self.shape[0]]
+            x_right = x[self.shape[0]:]
+            return np.vstack([self.f(t, x_self, u_self),
+                              right.f(t, x_right, u_right)])
+        def g_hg(t, x, u):
+            u_self = u[:self.shape[0]]
+            u_right = u[self.shape[0]:]
+            x_self = x[:self.shape[0]]
+            x_right = x[self.shape[0]:]
+            return np.vstack([self.g(t, x_self, u_self),
+                              right.g(t, x_right, u_right)])
+
+        order = self.order + right.order
+        shape = (self.shape[0] + right.shape[0], self.shape[1] + right.shape[1])
+        s0 = np.vstack([self.s, right.s])
+        
+        return CT_System(f_hg, g_hg, order, shape, s0=s0)
+
+    def __ror__(self, left):
+        if not issubclass(type(self), type(left)):
+            raise NotImplementedError
+
+        def f_hg(t, x, u):
+            u_left = u[:left.shape[0]]
+            u_right = u[left.shape[0]:]
+            x_left = x[:left.shape[0]]
+            x_right = x[left.shape[0]:]
+            return np.vstack([left.f(t, x_left, u_left),
+                              self.f(t, x_right, u_right)])
+        def g_hg(t, x, u):
+            u_left = u[:left.shape[0]]
+            u_right = u[left.shape[0]:]
+            x_left = x[:left.shape[0]]
+            x_right = x[left.shape[0]:]
+            return np.vstack([left.g(t, x_left, u_left),
+                              self.g(t, x_right, u_right)])
+
+        order = left.order + self.order
+        shape = (left.shape[0] + self.shape[0], left.shape[1] + self.shape[1])
+        s0 = np.vstack([left.s, self.s])
+
+        return CT_System(f_hg, g_hg, order, shape, s0=s0)
+
+    def __pow__(self, power):
+        """Raise system to integer power"""
+
+        if type(power) is not int:
+            raise NotImplementedError
+        
+        if power < 1:
+            raise NotImplementedError
+
+        if power == 1:
+            return(self)
+        else:
+            return(self * self**(power - 1))
 
 
 class CT_LTI_System(CT_System):
@@ -206,10 +625,10 @@ class CT_LTI_System(CT_System):
         self.s = self.x     # XXX refactor to use same state variable in CT_LTI and CT
 
     def f(self, t, s, u):
-        return self._A * s + self._B * u(t)
+        return self._A * s + self._B * u
 
     def g(self, t, s, u):
-        return self._C * s + self._D * u(t)
+        return self._C * s + self._D * u
 
     @property
     def ABCD(self):
@@ -388,9 +807,12 @@ class CT_LTI_System(CT_System):
         G = self
         Nports = np.min(G.shape)
         if len(Gout) >= Nports:
-            # cannot connect all ports:
+            # cannot connect _all_ ports:
             raise ConnectionError('at least 1 input and at least 1 output '
                                   'must remain unconnected')
+        if len(Gout) != len(Gin):
+            raise ConnectionError(
+                "No. outputs to connect must match no. inputs to connect")
 
         # connect one channel at a time. Start with Gout[0] => Hin[0]
         iout = Gout[0]
@@ -425,15 +847,10 @@ class CT_LTI_System(CT_System):
     def __connect__(self, right, Gout=None, Hin=None):
         H = self
         G = right
+        
+        Gout, Hin = _normalizePartialConnections(self, right, Gout, Hin)
+        
         if issubclass(type(G), CT_LTI_System):
-            # Prepare Gout, Hin:
-            # ===============================
-            if Gout is None:
-                # connect all outputs:
-                Gout = np.arange(G.shape[0])
-            if Hin is None:
-                # connect all inputs
-                Hin = np.arange(H.shape[1])
             if len(Gout) != len(Hin):
                 raise ConnectionError('Number of inputs does not match '
                                       'number of outputs')
@@ -476,9 +893,6 @@ class CT_LTI_System(CT_System):
                                                len(u_h_unconnected)))],
                          [H._D * Sh * G._D, H._D * sh]])
             x0 = np.vstack([G.x, H.x])
-        elif issubclass(type(G), CT_System):
-            # delegate to super class:
-            return(G.__rconnect__(H, Gout, Hin))
         elif issubclass(type(G), np.matrix):
             if H.shape[1] != G.shape[0]:
                 raise ConnectionError('No. inputs and outputs do not match')
@@ -496,7 +910,7 @@ class CT_LTI_System(CT_System):
             D = G * H._D
             x0 = np.matrix(H.x)
         else:
-            return(NotImplemented)
+            raise NotImplementedError
 
         return(CT_LTI_System(A, B, C, D, x0))
 
@@ -504,9 +918,6 @@ class CT_LTI_System(CT_System):
         G = self
         H = left
         if issubclass(type(H), CT_LTI_System):
-            return(H.__connect__(G, Gout, Hin))
-        elif issubclass(type(H), CT_System):
-            # delegate to super class:
             return(H.__connect__(G, Gout, Hin))
         elif issubclass(type(H), np.matrix):
             if H.shape[1] != G.shape[0]:
@@ -525,8 +936,8 @@ class CT_LTI_System(CT_System):
             D = H * G._D
             x0 = np.matrix(G.x)
         else:
-            return(NotImplemented)
-
+            raise NotImplementedError
+        
         return(CT_LTI_System(A, B, C, D, x0))
 
     def __add__(self, right):
@@ -559,35 +970,14 @@ class CT_LTI_System(CT_System):
             right = np.matrix(np.ones(self.shape) * right)
             return(self + right)
         else:
-            return(NotImplemented)
+            raise NotImplementedError
 
     def __radd__(self, left):
         return(self + left)
 
-    def __sub__(self, right):
-        return(self + -right)
-
-    def __rsub__(self, left):
-        return(left + -self)
-
-    def __mul__(self, right):
-        return(self.__connect__(right))
-
-    def __rmul__(self, left):
-        return(self.__rconnect__(left))
-
-    def __neg__(self):
-        return(self * (-1))
-
-    def __truediv__(self, right):
-        if type(right) in [float, int]:
-            invright = 1. / float(right)
-            return(self * invright)
-        else:
-            return(NotImplemented)
-
     def __or__(self, right):
         """Connect systems in parallel"""
+        # XXX Does not work if right is not a subclass of type(self)!
 
         Ag, Bg, Cg, Dg = self.ABCD
         gout, gin = self.shape
@@ -606,19 +996,6 @@ class CT_LTI_System(CT_System):
                      [np.zeros([hout, hin]), Dh]])
         x = np.vstack([self.x, right.x])
         return(CT_LTI_System(A, B, C, D, x))
-
-    def __pow__(self, power):
-        """Raise system to integer power"""
-
-        if type(power) is not int:
-            return(NotImplemented)
-        if power < 1:
-            return(NotImplemented)
-
-        if power == 1:
-            return(self)
-        else:
-            return(self * self**(power - 1))
 
 
 def Thetaphi(b, a):
@@ -720,7 +1097,7 @@ class DT_LTI_System(object):
         self.A, self.B, self.C, self.C = A, B, C, D
         self.x = x0
 
-    @classmethod
+    @staticmethod
     def fromTransferFunction(Theta, phi):
         """Initialize DiscreteLTI instance from transfer-function coefficients
         'Theta' and 'phi'."""
