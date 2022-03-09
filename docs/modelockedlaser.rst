@@ -134,5 +134,5 @@ The gain is not exactly what we aimed for (green curve is not converging towards
 the target gain (dashed line). Given the large errors we have assumed this
 is - however - still a quite acceptable result.
 
-.. plot:: pyplots/modelocked_laser/poleplacement_plot.py
+.. plot:: pyplots/modelocked_laser/poleplacement_plot.py plot_linearized
 

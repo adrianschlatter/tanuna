@@ -6,6 +6,7 @@ Stabilization of a mode-locked laser using pole placement.
 """
 # Code Snippet 1 - Start %%%%%
 from tanuna.examples.laser import NdYVO4Laser
+from tanuna.sources import SourceConstant
 import numpy as np
 import tanuna as dyn
 
@@ -13,21 +14,21 @@ import tanuna as dyn
 # =============================================================================
 
 Ppump = 0.1
-NdYVO4 = NdYVO4Laser(Ppump)
+NdYVO4 = NdYVO4Laser(Ppump=0.)
 
 
 # Linearized
 # =============================================================================
 
-M, system = NdYVO4.approximateLTI()
+M, system_lin = NdYVO4.approximateLTI(Ppump)
 # Add state outputs:
-A, B, C, D = system.ABCD
+A, B, C, D = system_lin.ABCD
 Toc = NdYVO4.Toc
 C = np.matrix([[0, Toc],
                [1, 0],
                [0, 1]])
 D = np.matrix(np.zeros((3, 1)))
-system = dyn.CT_LTI_System(A, B, C, D)
+system_lin = dyn.CT_LTI_System(A, B, C, D)
 # Code Snippet 1 - End %%%%%
 
 # Control
@@ -50,15 +51,15 @@ rk1 = 0.8
 rk2 = 0.8
 
 # Calculate and apply feedback:
-NdYVO4.PP = rPp * NdYVO4.PP
+Ppump_assumed = rPp * Ppump
 kr = rkr * (gamma**2 - nu)
-k1 = rk1 * 2. * (gamma - NdYVO4.zeta()) / NdYVO4.rho()
-k2 = rk2 * (gamma**2 - nu - 1.) / NdYVO4.rho()
+k1 = rk1 * 2 * (gamma - NdYVO4.zeta(Ppump_assumed)) / NdYVO4.rho(Ppump_assumed)
+k2 = rk2 * (gamma**2 - nu - 1.) / NdYVO4.rho(Ppump_assumed)
 
 stateoutput = np.matrix([[1, 0, 0]])
 K = np.matrix([[0, k1, k2]])
 L = np.vstack([stateoutput, K])
 summing = np.matrix([kr, -1])
-stabilized = L * system * summing
-stabilized = dyn.feedback(stabilized, Gout=(1,), Gin=(1,))
+stabilized_lin = L * system_lin * summing
+stabilized_lin = dyn.feedback(stabilized_lin, Gout=(1,), Gin=(1,))
 # Code Snippet 2 - End %%%%%
