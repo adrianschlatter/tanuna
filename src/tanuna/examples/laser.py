@@ -11,16 +11,15 @@ Model of a passively mode-locked laser.
 
 import numpy as np
 from scipy.optimize import brentq
-from scipy.integrate import ode
-from ..root import CT_LTI_System
+from ..root import CT_LTI_System, CT_System
 
 
-class Laser(ode):
+class Laser(CT_System):
     """A class to simulate lasers with a (slow) saturable absorber in the
     cavity. While it is intended for mode-locked lasers, it may also be useful
     for Q-switched lasers."""
 
-    def __init__(self, loss, TR, tauL, etaP, EsatL, DR, EsatA, Toc, PP0,
+    def __init__(self, loss, TR, tauL, etaP, EsatL, DR, EsatA, Toc, PP0=0.,
                  P0=None, g0=None):
         self.loss = loss
         self.TR = TR
@@ -30,19 +29,16 @@ class Laser(ode):
         self.DR = DR
         self.EsatA = EsatA
         self.Toc = Toc
-        self.PP0 = PP0
-        self.PP = PP0
+        # self.PP0 = PP0
+        # self.PP = PP0
         if P0 is None:
-            P0 = self.Psteady()
+            P0 = self.Psteady(PP0)
         if g0 is None:
-            g0 = self.gsteady()
+            g0 = self.gsteady(PP0)
         self.g0 = g0
 
-        super().__init__(self.f, jac=self.grad_f)
-
-        t0 = 0.
-        self.set_initial_value([P0, g0], t0)
-        self.set_integrator('dopri5')
+        super().__init__(self.f, self.g, 2, (1, 1),
+                         s0=np.matrix([[P0], [g0]]))
 
     def qP(self, EP):
         S = EP / self.EsatA
@@ -66,19 +62,20 @@ class Laser(ode):
         g = np.array(g)
 
         EP = P * self.TR
-        return(np.where(P > 0, (g - self.loss - self.qP(EP)) / self.TR * P,
+        return(np.where(P != 0, (g - self.loss - self.qP(EP)) / self.TR * P,
                         np.zeros(P.shape)))
 
-    def gdot(self, P, g):
+    def gdot(self, P, g, PP):
         spontaneous = (self.g0 - g) / self.tauL
         stimulated = -P * g / self.EsatL
-        pump = self.etaP * self.PP / self.EsatL
+        pump = self.etaP * PP / self.EsatL
         return(spontaneous + stimulated + pump)
 
-    def f(self, t, s):
+    def f(self, t, s, u):
         P, g = s
-        sdot = [self.Pdot(P, g), self.gdot(P, g)]
-        return(sdot)
+        PP = u
+        sdot = np.matrix([self.Pdot(P, g), self.gdot(P, g, PP)])
+        return sdot
 
     def grad_f(self, t, s):
         P, g = s
@@ -96,6 +93,15 @@ class Laser(ode):
 
         return([[dfP_dP, dfP_dg], [dfg_dP, dfg_dg]])
 
+    def g(self, t, s, u):
+        """
+        This is the output function of the CT_System and returns the
+        output power of the laser. Despite its name, is *not* related
+        to the laser's gain!
+        """
+        P, g = s
+        return np.matrix([self.Toc * P])
+    
     @property
     def pumpThreshold(self):
         """Pump power threshold, i.e., pump power needed to start lasing"""
@@ -103,11 +109,11 @@ class Laser(ode):
         loss, DR = self.loss, self.DR
         return(EsatL / tauL * (loss + DR) / etaP)
 
-    def steadystate(self, Ppump=None):
+    def steadystate(self, Ppump):
         """Steady state (Psteady, gsteady) given pump power Ppump"""
 
-        if Ppump is None:
-            Ppump = self.PP
+        # if Ppump is None:
+        #     Ppump = self.PP
 
         EsatL, TR, tauL = self.EsatL, self.TR, self.tauL
         loss, DR, etaP = self.loss, self.DR, self.etaP
@@ -132,15 +138,15 @@ class Laser(ode):
 
         return(Psteady, gsteady)
 
-    def Psteady(self, Ppump=None):
+    def Psteady(self, Ppump):
         """Steady-state intracavity power given pump power Ppump"""
         return(self.steadystate(Ppump)[0])
 
-    def gsteady(self, Ppump=None):
+    def gsteady(self, Ppump):
         """Steady-state gain given pump power Ppump"""
         return(self.steadystate(Ppump)[1])
 
-    def w0(self, Ppump=None):
+    def w0(self, Ppump):
         """Returns natural angular frequency of disturbances around steady
         state. Steady state is determined from pump power Ppump."""
 
@@ -152,7 +158,7 @@ class Laser(ode):
                      Pst * self.dqP_dEP(Pst * TR) * (1. / tauL + r))
         return(w0)
 
-    def alpha(self, Ppump=None):
+    def alpha(self, Ppump):
         """Damping rate of relaxation oscillations (negative real part of
         poles). The nice thing about alpha is that it is also correct below
         the lasing threshold (where it is equal to 1 / tauL)."""
@@ -162,11 +168,11 @@ class Laser(ode):
         a = (1. / tauL + Pst * (self.dqP_dEP(Pst * TR) + 1. / EsatL))
         return(a)
 
-    def zeta(self, Ppump=None):
+    def zeta(self, Ppump):
         """Damping ratio of relaxation oscillations."""
         return(self.alpha(Ppump) / 2. / self.w0(Ppump))
 
-    def rho(self, Ppump=None):
+    def rho(self, Ppump):
         """Internal slope efficiency at pump power Ppump"""
 
         etaP, EsatL, TR = self.etaP, self.EsatL, self.TR
@@ -177,7 +183,7 @@ class Laser(ode):
         """Return true if laser is stable (i.e. no Q-switching)"""
         return(self.zeta > 0)
 
-    def approximateLTI(self, Ppump=None):
+    def approximateLTI(self, Ppump):
         """Linearizes the state-equations around the steady state corresponding
         to a pump power Ppump and returns a CT_LTI_System."""
 
@@ -204,7 +210,7 @@ class NdYVO4Laser(Laser):
     """An pre-configured example of a passively mode-locked 100 MHz Nd:YVO4
     Laser"""
 
-    def __init__(self, Ppump):
+    def __init__(self, Ppump=0.):
         tauL = 90e-6
         TR = 10e-9
         FsatA = 60e-6 / 1e-4

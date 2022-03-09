@@ -6,19 +6,22 @@ Demonstrating mode-locked laser.
 """
 # Code Snippet 1 - Start %%%%%
 from tanuna.examples.laser import NdYVO4Laser
+from tanuna.sources import SourceConstant
+from tanuna import connect
 import numpy as np
 
 Ppump = 0.1
 NdYVO4 = NdYVO4Laser(Ppump)
+pump = SourceConstant(y=np.matrix(Ppump))
+pumped_NdYVO4 = connect(NdYVO4, pump)
 
 # ODE solving
 # =============================================================================
 
-Psteady, gsteady = NdYVO4.steadystate()
-t = np.arange(6000) * NdYVO4.TR * 5
-P, g = np.zeros(t.shape), np.zeros(t.shape)
+Psteady, gsteady = NdYVO4.steadystate(Ppump)
+t = np.arange(35000) * NdYVO4.TR
 
-for i in range(len(t)):
-    P[i], g[i] = NdYVO4.integrate(t[i])
+Pout, state = pumped_NdYVO4(t, return_state=True, method='DOP853')
+P, g = state
 
 # Code Snippet 1 - End %%%%%

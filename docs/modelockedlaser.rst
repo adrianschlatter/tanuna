@@ -83,7 +83,7 @@ laser power as output but the internal state as well:
 
 where :math:`\vec{x} = \left[ \delta \dot{P} / \omega_0, \delta P \right]^T` is
 the (transformed!) state and :math:`u = \delta P_P` the deviation from the
-deviation from the (design-) pump power.
+(design-) pump power.
 
 .. literalinclude:: pyplots/modelocked_laser/poleplacement.py
 	:start-after: # Code Snippet 1 - Start %%%%%

@@ -4,7 +4,9 @@ Demonstrating mode-locked laser.
 
 @author: Adrian Schlatter
 """
-from modelocked_laser import *
+from modelocked_laser import pumped_NdYVO4, gsteady, Psteady
+from modelocked_laser import g, P, t, Ppump, NdYVO4
+import numpy as np
 import matplotlib.pyplot as pl
 
 # Streamplot and Q-switching
@@ -15,7 +17,7 @@ def plot_streamplot():
     x = np.linspace(0., 0.2, 50)
     y = np.linspace(0., 25 * Psteady, 50)
     X, Y = np.meshgrid(x, y)
-    V, U = NdYVO4.f(0, [Y, X])
+    V, U = NdYVO4.f(0, [Y, X], Ppump)
 
     pl.figure(figsize=(12, 6))
     pl.suptitle('State Propagation', fontsize=18)
@@ -29,16 +31,16 @@ def plot_streamplot():
     pl.xlim([x[0], x[-1]])
     pl.ylim([y[0], y[-1]])
 
-    pl.plot(g, P, r'r-')
+    pl.plot(g.T, P.T, r'r-')
     pl.plot([gsteady], [Psteady], r'ko')
 
     pl.subplot(1, 2, 2)
     pl.title('Q-Switching')
-    pl.plot(t/1e-6, NdYVO4.Toc * P, r'r-')
+    pl.plot(t / 1e-6, NdYVO4.Toc * P.T, r'r-')
     pl.axhline(y=NdYVO4.Toc * Psteady, color='k', ls='--')
     pl.ylabel('Output Power (W)')
     pl.xlabel('Time (us)')
-    pl.xlim([0, 300])
+    # pl.xlim([0, 300])
     pl.ylim([y[0] * NdYVO4.Toc, y[-1] * NdYVO4.Toc])
 
     pl.subplots_adjust(left=0.07, right=0.95)
@@ -72,6 +74,7 @@ def plot_slope():
 
 def plot_linearization():
     # calculate linearization(Ppump):
+    Ppump = np.linspace(0., 1., 1000)
     w0 = np.array([NdYVO4.w0(pp) for pp in Ppump])
     zeta = np.array([NdYVO4.zeta(pp) for pp in Ppump])
 
@@ -86,7 +89,9 @@ def plot_linearization():
     ax2.set_ylabel('Damping Ratio (1)', rotation=270, color='b')
     pl.subplots_adjust(right=0.88)
 
+
 # Main
 # =============================================================================
+
 
 plot_streamplot()
