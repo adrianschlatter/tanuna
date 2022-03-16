@@ -63,3 +63,38 @@ summing = np.matrix([kr, -1])
 stabilized_lin = L * system_lin * summing
 stabilized_lin = dyn.feedback(stabilized_lin, Gout=(1,), Gin=(1,))
 # Code Snippet 2 - End %%%%%
+
+
+# Code Snippet 3 - Start %%%%%
+class StateOutputLaser(NdYVO4Laser):
+    """Same as NdYVO4Laser but outputs (Pout, g, P) instead of only Pout."""
+
+    def __init__(self, Ppump=0.):
+        super().__init__(Ppump=Ppump)
+        self.shape = (3, 1)
+
+    def g(self, t, s, u):
+        """
+        This is the output function of the CT_System and returns the
+        output power of the laser. Despite its name, is *not* related
+        to the laser's gain!
+        """
+        P, g = s
+        return np.matrix([self.Toc * P, P, g])
+
+
+so_NdYVO4 = StateOutputLaser(Ppump=0.0)
+so_NdYVO4.s = np.matrix([[0.1, 0]]).T  # "noise photons"
+
+P0, g0 = so_NdYVO4.steadystate((Ppump))
+
+y0 = np.matrix([[0], [-P0], [-g0]])
+stabilized = so_NdYVO4.offset_outputs(y0)
+stabilized = stabilized.offset_inputs(Ppump)
+Maugmented = np.eye(3)
+Maugmented[1:, 1:] = M
+stabilized = L * Maugmented * stabilized * summing
+stabilized = dyn.feedback(stabilized, Gout=(1,), Gin=(1,))
+stabilized = dyn.connect(stabilized, SourceConstant(y=np.matrix(0.)))
+system = dyn.connect(so_NdYVO4, SourceConstant(y=np.matrix(Ppump)))
+# Code Snippet 3 - End %%%%%

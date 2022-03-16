@@ -134,5 +134,26 @@ The gain is not exactly what we aimed for (green curve is not converging towards
 the target gain (dashed line). Given the large errors we have assumed this
 is - however - still a quite acceptable result.
 
-.. plot:: pyplots/modelocked_laser/poleplacement_plot.py plot_linearized
+.. plot:: pyplots/modelocked_laser/poleplacement_plot_lin.py
 
+
+Let's see whether this works as nicely when applied to the original, non-linear
+system. Particularly, after turning on the laser it is far away from the
+steady-state we linearized it around and may behave quite differently than
+shown in the linear simulation shown above. In contrast to the simulation of
+the linearized system above, we will not start from the steady-state and
+feed a step. Instead, we will start with the laser turned off
+(:math: `P_{pump} = 0`), the set the pump power to a level that usually leads
+to Q-switching:
+
+.. literalinclude:: pyplots/modelocked_laser/poleplacement.py
+	:start-after: # Code Snippet 3 - Start %%%%%
+	:end-before: # Code Snippet 3 - End %%%%%
+
+.. plot:: pyplots/modelocked_laser/poleplacement_plot_nonlin.py
+
+
+The laser still goes through a few Q-switching cycles but the  control
+manages to damp them. Note, however, that some modulation remains. Apparently,
+the system still has a limit cycle, albeit a much smaller one than the 
+unstabilized laser.

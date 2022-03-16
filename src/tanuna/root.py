@@ -146,6 +146,9 @@ class Function(object):
     """
 
     def __init__(self, func):
+        if not callable(func):
+            raise TypeError('func must be callable')
+        
         self.func = func
 
     def __call__(self, t, x, u):
@@ -212,6 +215,14 @@ class Function(object):
 
     def __getitem__(self, slc):
         return Function(lambda t, x, u: self.func(t, x, u)[slc])
+
+    def offset_inputs(self, right):
+        """Level-shift inputs"""
+        return Function(lambda t, x, du: self.func(t, x, right + du))
+
+    def offset_outputs(self, left):
+        """Level-shift outputs"""
+        return Function(lambda t, x, u: left + self.func(t, x, u))
 
     def reorder_xputs(self, outs, ins):
         # find inverse permutation of ins:
@@ -602,6 +613,42 @@ class CT_System(object):
         else:
             return(self * self**(power - 1))
 
+    def offset_inputs(self, right):
+        """Level-shift inputs"""
+
+        if issubclass(type(right), (float, int)):
+            right = np.matrix([[right]])
+
+        if issubclass(type(right), np.matrix):
+            if right.shape != (self.shape[1], 1):
+                raise ConnectionError(
+                        'Level-shift vector does not match shape of input')
+
+            f_shifted = self.f.offset_inputs(right)
+            g_shifted = self.g.offset_inputs(right)
+            return CT_System(f_shifted, g_shifted, self.order, self.shape,
+                             self.s)
+
+        raise NotImplementedError
+
+    def offset_outputs(self, left):
+        """Level-shift outputs"""
+
+        if issubclass(type(left), (float, int)):
+            left = np.matrix([[left]])
+
+        if issubclass(type(left), np.matrix):
+            if left.shape != (self.shape[0], 1):
+                print(left)
+                print(self.shape)
+                raise ConnectionError(
+                    'Level-shift vector does not match shape of output')
+
+            g_shifted = self.g.offset_outputs(left)
+            return CT_System(self.f, g_shifted, self.order, self.shape, self.s)
+
+        raise NotImplementedError
+
 
 class CT_LTI_System(CT_System):
     """Continuous-time, Linear, time-invariant system"""
@@ -957,23 +1004,30 @@ class CT_LTI_System(CT_System):
             D = G._D + H._D
             x0 = np.vstack([G.x, H.x])
             return(CT_LTI_System(A, B, C, D, x0))
-        elif issubclass(type(right), np.matrix):
+
+        if issubclass(type(right), np.matrix):
+            # (G + M)(t, x, u) = G(t, x, u) + M*u
             if right.shape != G._D.shape:
-                raise MatrixError('Shapes of right and self._D have to match')
+                raise MatrixError(
+                        f'Shapes of {right} and self._D have to match')
             A = G._A
             B = G._B
             C = G._C
             D = G._D + right
             x0 = G.x
             return(CT_LTI_System(A, B, C, D, x0))
-        elif type(right) in [int, float]:
+        
+        if type(right) in [float, int]:
             right = np.matrix(np.ones(self.shape) * right)
             return(self + right)
-        else:
-            raise NotImplementedError
+
+        return super().__add__(right)
 
     def __radd__(self, left):
-        return(self + left)
+        if issubclass(type(left), (CT_LTI_System, np.matrix, float, int)):
+            return(self + left)
+
+        return super().__radd__(left)
 
     def __or__(self, right):
         """Connect systems in parallel"""
