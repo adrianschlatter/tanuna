@@ -1,5 +1,7 @@
 # tanuna
 
+<img alt="pypi downloads/month" src="https://img.shields.io/pypi/dm/tanuna.svg">
+
 tanuna is a Python package that supports working with dynamic systems. It is
 intended to include:
 
